@@ -21,11 +21,11 @@ import {
   LogIn,
   LogOut,
   User,
-  Cloud
+  Cloud,
+  Instagram // Nuevo icono importado
 } from 'lucide-react';
 
 // --- IMPORTACIONES DE FIREBASE ---
-// Asegúrate de que src/firebase.js existe y tiene tus credenciales
 import { auth, googleProvider, db } from './firebase';
 import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth';
 import { doc, setDoc, getDoc, onSnapshot } from 'firebase/firestore';
@@ -52,14 +52,13 @@ const mmToPx = (mm) => mm * 3.7795275591;
 
 export default function App() {
   // --- ESTADO PRINCIPAL ---
-  const [user, setUser] = useState(null); // Estado del usuario
-  const [isSaving, setIsSaving] = useState(false); // Indicador de guardado en nube
+  const [user, setUser] = useState(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   const [unit, setUnit] = useState('mm');
   const [images, setImages] = useState([]);
   const [zoom, setZoom] = useState(0.8);
 
-  // Estado inicial diferido para cargar de LocalStorage si no hay usuario
   const [favorites, setFavorites] = useState(() => {
     const saved = localStorage.getItem('printmaster_favs');
     return saved ? JSON.parse(saved) : [];
@@ -87,16 +86,12 @@ export default function App() {
   const [showSettingsModal, setShowSettingsModal] = useState(false);
 
   // --- LÓGICA DE FIREBASE Y PERSISTENCIA ---
-
-  // 1. Escuchar cambios de autenticación
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
       if (currentUser) {
-        // Si inicia sesión, cargar sus datos de Firestore
         await loadUserData(currentUser.uid);
       } else {
-        // Si cierra sesión, volver a datos locales (o limpiar)
         const savedFavs = localStorage.getItem('printmaster_favs');
         setFavorites(savedFavs ? JSON.parse(savedFavs) : []);
       }
@@ -104,7 +99,6 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // 2. Cargar datos del usuario desde Firestore
   const loadUserData = async (uid) => {
     setIsSaving(true);
     try {
@@ -117,12 +111,7 @@ export default function App() {
         if (data.favorites) setFavorites(data.favorites);
         if (data.unit) setUnit(data.unit);
       } else {
-        // Si es usuario nuevo, guardar la config actual como inicial
-        await setDoc(docRef, {
-          config,
-          favorites,
-          unit
-        });
+        await setDoc(docRef, { config, favorites, unit });
       }
     } catch (error) {
       console.error("Error cargando datos:", error);
@@ -130,69 +119,45 @@ export default function App() {
     setIsSaving(false);
   };
 
-  // 3. Auto-guardado en Firestore (Debounced)
-  // Guarda Configuración y Unidad cada vez que cambian, pero espera 1.5s de inactividad
   useEffect(() => {
-    if (!user) return; // Solo si hay usuario
-
+    if (!user) return;
     const saveData = setTimeout(async () => {
       setIsSaving(true);
       try {
         const docRef = doc(db, "users", user.uid);
-        // Usamos setDoc con { merge: true } para actualizar solo lo necesario
         await setDoc(docRef, { config, unit }, { merge: true });
-      } catch (error) {
-        console.error("Error guardando config:", error);
-      }
+      } catch (error) { console.error(error); }
       setIsSaving(false);
-    }, 1500); // Esperar 1.5 segundos después del último cambio
-
+    }, 1500);
     return () => clearTimeout(saveData);
   }, [config, unit, user]);
 
-  // 4. Guardado inmediato de Favoritos
-  // Los favoritos no necesitan debounce porque son acciones puntuales
   useEffect(() => {
     if (!user) {
-      // Si no hay usuario, guardar en LocalStorage
       localStorage.setItem('printmaster_favs', JSON.stringify(favorites));
       return;
     }
-
     const saveFavs = async () => {
       setIsSaving(true);
       try {
         const docRef = doc(db, "users", user.uid);
         await setDoc(docRef, { favorites }, { merge: true });
-      } catch (error) {
-        console.error("Error guardando favoritos:", error);
-      }
+      } catch (error) { console.error(error); }
       setIsSaving(false);
     };
     saveFavs();
   }, [favorites, user]);
 
-
-  // --- FUNCIONES DE AUTH ---
   const handleLogin = async () => {
-    try {
-      await signInWithPopup(auth, googleProvider);
-    } catch (error) {
-      console.error("Error al iniciar sesión:", error);
-      alert("No se pudo iniciar sesión con Google.");
-    }
+    try { await signInWithPopup(auth, googleProvider); }
+    catch (error) { console.error(error); alert("No se pudo iniciar sesión."); }
   };
 
   const handleLogout = async () => {
-    try {
-      await signOut(auth);
-    } catch (error) {
-      console.error("Error al cerrar sesión:", error);
-    }
+    try { await signOut(auth); } catch (error) { console.error(error); }
   };
 
-
-  // --- CÁLCULOS LÓGICOS (Igual que antes) ---
+  // --- CÁLCULOS LÓGICOS ---
   const currentPage = PAGE_SIZES[config.pageSize];
   const pageWidthMm = currentPage.width;
   const pageHeightMm = currentPage.height;
@@ -229,15 +194,13 @@ export default function App() {
   const cellHeightPx = mmToPx(computedCellHeightMm);
   const totalPages = Math.max(1, Math.ceil(images.length / itemsPerPage));
 
-  // --- HANDLERS (Files, Drag, Etc) ---
+  // --- HANDLERS ---
   const handleFiles = (files) => {
     if (!files || files.length === 0) return;
     const newImages = Array.from(files).map(file => ({
       id: crypto.randomUUID(),
       src: URL.createObjectURL(file),
-      rotation: 0,
-      objectFit: 'cover',
-      x: 0, y: 0, name: file.name, naturalWidth: 1, naturalHeight: 1
+      rotation: 0, objectFit: 'cover', x: 0, y: 0, name: file.name, naturalWidth: 1, naturalHeight: 1
     }));
     setImages(prev => [...prev, ...newImages]);
   };
@@ -266,8 +229,7 @@ export default function App() {
           const blob = await item.getType(imageType);
           const file = new File([blob], "pasted.png", { type: imageType });
           newPastedImages.push({
-            id: crypto.randomUUID(),
-            src: URL.createObjectURL(file),
+            id: crypto.randomUUID(), src: URL.createObjectURL(file),
             rotation: 0, objectFit: 'cover', x: 0, y: 0, name: 'Portapapeles', naturalWidth: 1, naturalHeight: 1
           });
         }
@@ -325,7 +287,6 @@ export default function App() {
     };
   }, [zoom, cellWidthPx, cellHeightPx]);
 
-  // Image actions...
   const removeImage = (id) => setImages(prev => prev.filter(img => img.id !== id));
   const duplicateImage = (img) => { setImages(prev => [...prev, { ...img, id: crypto.randomUUID(), x: 0, y: 0 }]); };
   const fillPage = (img) => {
@@ -340,7 +301,6 @@ export default function App() {
   const rotateAllImages = () => { setImages(prev => prev.map(img => ({ ...img, rotation: (img.rotation + 90) % 360, x: 0, y: 0 }))); };
   const toggleObjectFit = (id) => { setImages(prev => prev.map(img => img.id === id ? { ...img, objectFit: img.objectFit === 'cover' ? 'contain' : 'cover', x: 0, y: 0 } : img)); };
 
-  // Config actions
   const saveConfiguration = () => {
     if (!newFavName.trim()) return;
     const newFav = { id: Date.now(), name: newFavName, config };
@@ -376,7 +336,6 @@ export default function App() {
         </div>
 
         <div className="flex gap-2 items-center">
-          {/* USER / LOGIN SECTION */}
           <div className="mr-4 border-r border-blue-500 pr-4 flex items-center">
             {user ? (
               <div className="flex items-center gap-2">
@@ -661,7 +620,7 @@ export default function App() {
                 <h3 className="font-bold text-slate-700 flex items-center gap-2"><Settings className="w-4 h-4" /> Configuración</h3>
                 <button onClick={() => setShowSettingsModal(false)} className="text-slate-400 hover:text-slate-600"><X className="w-5 h-5" /></button>
               </div>
-              <div className="p-6 space-y-4">
+              <div className="p-6 space-y-6">
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 mb-2">Unidad de Medida</label>
                   <div className="flex bg-slate-100 p-1 rounded-lg">
@@ -670,6 +629,29 @@ export default function App() {
                     ))}
                   </div>
                   <p className="text-xs text-slate-400 mt-2">Esto afectará cómo se muestran las medidas en el panel de márgenes y espaciado.</p>
+                </div>
+
+                {/* About Section */}
+                <div className="border-t border-slate-100 pt-4">
+                  <label className="block text-sm font-semibold text-slate-700 mb-3">Acerca de</label>
+
+                  <a
+                    href="https://www.instagram.com/luispalacios2711"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="group block bg-gradient-to-r from-purple-50 to-pink-50 hover:from-purple-100 hover:to-pink-100 p-3 rounded-xl border border-pink-100 transition-all duration-300 shadow-sm hover:shadow-md"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="bg-white p-2 rounded-full shadow-sm text-pink-600 group-hover:scale-110 transition-transform duration-300">
+                        <Instagram className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wider font-bold text-pink-400">Desarrollado por</p>
+                        <p className="text-sm font-bold text-slate-800 group-hover:text-pink-700 transition-colors">Luis Palacios</p>
+                        <p className="text-[10px] text-slate-500">@luispalacios2711</p>
+                      </div>
+                    </div>
+                  </a>
                 </div>
               </div>
               <div className="bg-slate-50 p-4 flex justify-end">
