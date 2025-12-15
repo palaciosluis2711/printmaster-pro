@@ -9,9 +9,11 @@ export function usePrintStudio() {
   const [zoom, setZoom] = useState(0.8);
   const [mosaicImage, setMosaicImage] = useState(null);
   const [favorites, setFavorites] = useState([]);
-  
-  // Nuevo estado para controlar la vista de mosaico
+
+  // Estados para control de Mosaico
   const [isMosaicPreview, setIsMosaicPreview] = useState(true);
+  // NUEVO: Almacena el tamaño mínimo (1 página) para el modo "Por Tamaño"
+  const [minMosaicDimensions, setMinMosaicDimensions] = useState({ width: 10, height: 10 });
 
   const [config, setConfig] = useState({
     pageSize: 'carta',
@@ -43,71 +45,88 @@ export function usePrintStudio() {
     const pageHeightMm = PAGE_SIZES[config.pageSize].height;
     const contentWidth = pageWidthMm - config.margins.left - config.margins.right;
     const contentHeight = pageHeightMm - config.margins.top - config.margins.bottom;
-    
+
     let cellW_mm, cellH_mm;
 
     if (config.useCustomSize) {
-        cellW_mm = config.customWidth;
-        cellH_mm = config.customHeight;
+      cellW_mm = config.customWidth;
+      cellH_mm = config.customHeight;
     } else {
-        const totalGapWidth = config.gap * (config.cols - 1);
-        const totalGapHeight = config.gap * (config.rows - 1);
-        cellW_mm = (contentWidth - totalGapWidth) / config.cols;
-        cellH_mm = (contentHeight - totalGapHeight) / config.rows;
+      const totalGapWidth = config.gap * (config.cols - 1);
+      const totalGapHeight = config.gap * (config.rows - 1);
+      cellW_mm = (contentWidth - totalGapWidth) / config.cols;
+      cellH_mm = (contentHeight - totalGapHeight) / config.rows;
     }
-    
+
     return {
-        cellWidthPx: mmToPx(cellW_mm),
-        cellHeightPx: mmToPx(cellH_mm)
+      cellWidthPx: mmToPx(cellW_mm),
+      cellHeightPx: mmToPx(cellH_mm)
     };
   };
 
   // --- MANEJO DE ARCHIVOS ---
   const handleFiles = (files) => {
     if (!files || files.length === 0) return;
-    
+
     if (config.useMosaicMode) {
       const file = files[0];
       const url = URL.createObjectURL(file);
       const img = new Image();
       img.src = url;
       img.onload = () => {
-         const pxToMmFactor = 0.2645833333; 
-         const initW = Math.round(img.naturalWidth * pxToMmFactor);
-         const initH = Math.round(img.naturalHeight * pxToMmFactor);
+        // --- CÁLCULO INICIAL INTELIGENTE (1 Página Contain) ---
+        const pageSize = PAGE_SIZES[config.pageSize];
+        const pageW = pageSize.width - config.margins.left - config.margins.right;
+        const pageH = pageSize.height - config.margins.top - config.margins.bottom;
 
-         setMosaicImage({
-            id: crypto.randomUUID(),
-            src: url,
-            originalSrc: url,
-            name: file.name,
-            naturalWidth: img.naturalWidth,
-            naturalHeight: img.naturalHeight,
-            rotation: 0,
-            objectFit: 'contain'
-         });
-         
-         setConfig(prev => ({
-             ...prev,
-             mosaicTargetWidth: initW,
-             mosaicTargetHeight: initH,
-             mosaicCols: 1, 
-             mosaicRows: 1
-         }));
-         setIsMosaicPreview(true); // Resetear a vista previa al cargar nueva
+        const imgRatio = img.naturalWidth / img.naturalHeight;
+        const pageRatio = pageW / pageH;
+
+        let initW, initH;
+
+        if (imgRatio > pageRatio) {
+          initW = pageW;
+          initH = pageW / imgRatio;
+        } else {
+          initH = pageH;
+          initW = pageH * imgRatio;
+        }
+
+        setMosaicImage({
+          id: crypto.randomUUID(),
+          src: url,
+          originalSrc: url,
+          name: file.name,
+          naturalWidth: img.naturalWidth,
+          naturalHeight: img.naturalHeight,
+          rotation: 0,
+          objectFit: 'contain'
+        });
+
+        // NUEVO: Guardamos estas dimensiones como el MÍNIMO permitido
+        setMinMosaicDimensions({ width: initW, height: initH });
+
+        setConfig(prev => ({
+          ...prev,
+          mosaicTargetWidth: initW,
+          mosaicTargetHeight: initH,
+          mosaicCols: 1,
+          mosaicRows: 1
+        }));
+        setIsMosaicPreview(true);
       };
     } else {
       const newImages = Array.from(files).map(file => {
         const url = URL.createObjectURL(file);
         return {
-          id: crypto.randomUUID(), 
-          src: url, 
+          id: crypto.randomUUID(),
+          src: url,
           originalSrc: url,
-          rotation: 0, 
-          objectFit: 'cover', 
-          x: 0, y: 0, 
-          name: file.name, 
-          naturalWidth: 1, 
+          rotation: 0,
+          objectFit: 'cover',
+          x: 0, y: 0,
+          name: file.name,
+          naturalWidth: 1,
           naturalHeight: 1
         };
       });
@@ -123,18 +142,18 @@ export function usePrintStudio() {
   // --- LÓGICA DE ARRASTRE ---
   const handleMouseDown = (e, img) => {
     if (config.useMosaicMode) return;
-    if (e.button === 2) return; 
+    if (e.button === 2) return;
     if (img.objectFit !== 'cover') return;
     e.preventDefault();
-    
+
     dragRef.current = {
-      id: img.id, 
-      startX: e.clientX, 
+      id: img.id,
+      startX: e.clientX,
       startY: e.clientY,
-      initialImgX: img.x || 0, 
+      initialImgX: img.x || 0,
       initialImgY: img.y || 0,
-      imgRotation: img.rotation, 
-      imgNatW: img.naturalWidth, 
+      imgRotation: img.rotation,
+      imgNatW: img.naturalWidth,
       imgNatH: img.naturalHeight
     };
   };
@@ -150,7 +169,7 @@ export function usePrintStudio() {
       const cellRatio = cellWidthPx / cellHeightPx;
       const imgRatio = (isRotated90 ? imgNatH : imgNatW) / (isRotated90 ? imgNatW : imgNatH);
       let renderW_px, renderH_px;
-      
+
       if (isRotated90) {
         if (imgRatio > cellRatio) { renderH_px = cellHeightPx; renderW_px = cellHeightPx * imgRatio; }
         else { renderW_px = cellWidthPx; renderH_px = cellWidthPx / imgRatio; }
@@ -158,10 +177,10 @@ export function usePrintStudio() {
         if (imgRatio > cellRatio) { renderH_px = cellHeightPx; renderW_px = cellHeightPx * imgRatio; }
         else { renderW_px = cellWidthPx; renderH_px = cellWidthPx / imgRatio; }
       }
-      
+
       const maxX = Math.max(0, (renderW_px - cellWidthPx) / 2);
       const maxY = Math.max(0, (renderH_px - cellHeightPx) / 2);
-      
+
       setImages(prev => prev.map(img => {
         if (img.id === id) {
           let nextX = Math.max(-maxX, Math.min(maxX, initialImgX + deltaX));
@@ -199,24 +218,24 @@ export function usePrintStudio() {
 
   // --- MOSAIC ACTIONS ---
   const rotateMosaicImage = () => {
-      if (!mosaicImage) return;
-      setMosaicImage(prev => ({ ...prev, rotation: (prev.rotation + 90) % 360 }));
+    if (!mosaicImage) return;
+    setMosaicImage(prev => ({ ...prev, rotation: (prev.rotation + 90) % 360 }));
   };
   const toggleMosaicFit = () => {
-      if (!mosaicImage) return;
-      setMosaicImage(prev => ({ ...prev, objectFit: prev.objectFit === 'cover' ? 'contain' : 'cover' }));
+    if (!mosaicImage) return;
+    setMosaicImage(prev => ({ ...prev, objectFit: prev.objectFit === 'cover' ? 'contain' : 'cover' }));
   };
   const removeMosaicImage = () => { setMosaicImage(null); };
 
   const updateMosaicSize = (dim, val) => {
-     if (!mosaicImage) return;
-     const mmVal = Number(val);
-     const ratio = mosaicImage.naturalWidth / mosaicImage.naturalHeight;
-     if (dim === 'width') {
-         setConfig(prev => ({ ...prev, mosaicTargetWidth: toMm(mmVal, unit), mosaicTargetHeight: toMm(mmVal / ratio, unit) }));
-     } else {
-         setConfig(prev => ({ ...prev, mosaicTargetHeight: toMm(mmVal, unit), mosaicTargetWidth: toMm(mmVal * ratio, unit) }));
-     }
+    if (!mosaicImage) return;
+    const mmVal = Number(val);
+    const ratio = mosaicImage.naturalWidth / mosaicImage.naturalHeight;
+    if (dim === 'width') {
+      setConfig(prev => ({ ...prev, mosaicTargetWidth: toMm(mmVal, unit), mosaicTargetHeight: toMm(mmVal / ratio, unit) }));
+    } else {
+      setConfig(prev => ({ ...prev, mosaicTargetHeight: toMm(mmVal, unit), mosaicTargetWidth: toMm(mmVal * ratio, unit) }));
+    }
   };
 
   const updateMargin = (side, value) => { const mm = toMm(Number(value), unit); setConfig(prev => ({ ...prev, margins: { ...prev.margins, [side]: mm } })); };
@@ -230,7 +249,8 @@ export function usePrintStudio() {
     zoom, setZoom,
     favorites, setFavorites,
     config, setConfig,
-    isMosaicPreview, setIsMosaicPreview, // Exponemos el nuevo estado
+    isMosaicPreview, setIsMosaicPreview,
+    minMosaicDimensions, // Exportamos el nuevo estado
     handleFiles, handleImageLoad, handleMouseDown,
     removeImage, duplicateImage, rotateImage, rotateAllImages, toggleObjectFit, fillPage,
     rotateMosaicImage, toggleMosaicFit, removeMosaicImage, updateMosaicSize,
