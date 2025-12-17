@@ -8,7 +8,7 @@ import {
 
 import { PAGE_SIZES, UNITS } from '../../constants/printSettings';
 import { convert, toMm } from '../../utils/measurements';
-import InputNumber from '../UI/InputNumber';
+import InputNumber from '../../UI/InputNumber';
 import { PaperSettings, MarginSettings, PrintGuidesFooter } from './SidebarSections';
 
 export default function Sidebar({
