@@ -38,6 +38,7 @@ export default function MainCanvas({
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  // --- ENGINE DE DISEÑO ---
   const layout = useMemo(() => {
     const pageSize = PAGE_SIZES[config.pageSize];
     const pageWidthMm = pageSize.width;
@@ -53,6 +54,7 @@ export default function MainCanvas({
         const w = config.customWidth;
         const h = config.customHeight;
         const g = config.gap;
+        // Cálculo de cuántas caben
         const maxCols = Math.floor((contentWidth + g) / (w + g));
         const maxRows = Math.floor((contentHeight + g) / (h + g));
         cols = Math.max(1, maxCols);
@@ -159,7 +161,7 @@ export default function MainCanvas({
         {config.useMosaicMode && (isMosaicPreview || !mosaicImage) ? (
           <div className="flex flex-col items-center justify-center w-full min-h-full p-4 animate-in fade-in zoom-in-95 duration-300">
 
-            <div
+      <div
               className={`bg-white shadow-2xl relative border transition-all duration-150 ease-out origin-center flex items-center justify-center ${!mosaicImage ? 'border-2 border-dashed border-slate-300 hover:border-blue-400 hover:bg-slate-50 cursor-pointer' : 'border-slate-400'}`}
               style={{
                 width: `${layout.previewBaseW * zoom}px`,
@@ -167,7 +169,7 @@ export default function MainCanvas({
                 minWidth: `${layout.previewBaseW * zoom}px`,
                 minHeight: `${layout.previewBaseH * zoom}px`,
               }}
-              onContextMenu={(e) => {
+        onContextMenu={(e) => {
                 if (!mosaicImage) {
                   handleContextMenu(e, 'mosaic-empty');
                 } else {
@@ -177,74 +179,74 @@ export default function MainCanvas({
                     e.preventDefault();
                   }
                 }
-              }}
-              onClick={!mosaicImage ? onUploadClick : undefined}
-            >
-              {!mosaicImage ? (
-                <div className="text-center p-6 text-slate-400 flex flex-col items-center select-none">
+        }}
+        onClick={!mosaicImage ? onUploadClick : undefined}
+      >
+        {!mosaicImage ? (
+          <div className="text-center p-6 text-slate-400 flex flex-col items-center select-none">
                   <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mb-4 shadow-inner">
                     <Plus className="w-10 h-10 text-slate-300" />
                   </div>
-                  <h3 className="text-xl font-bold text-slate-500 mb-1">Cargar Imagen</h3>
+            <h3 className="text-xl font-bold text-slate-500 mb-1">Cargar Imagen</h3>
                   <p className="text-xs text-slate-400 max-w-[200px]">Haz clic para cargar una imagen</p>
-                </div>
-              ) : (
-                <>
-                  <div className="absolute inset-0 w-full h-full flex items-center justify-center bg-white overflow-hidden">
+          </div>
+        ) : (
+          <>
+            <div className="absolute inset-0 w-full h-full flex items-center justify-center bg-white overflow-hidden">
                     <img
                       src={mosaicImage.src}
                       alt="Mosaic Preview"
-                      style={{
-                        width: config.mosaicType === 'size' ? `${(layout.realImageW_mm / layout.mosaicTotalW_mm) * 100}%` : '100%',
-                        height: config.mosaicType === 'size' ? `${(layout.realImageH_mm / layout.mosaicTotalH_mm) * 100}%` : '100%',
+                style={{
+                  width: config.mosaicType === 'size' ? `${(layout.realImageW_mm / layout.mosaicTotalW_mm) * 100}%` : '100%',
+                  height: config.mosaicType === 'size' ? `${(layout.realImageH_mm / layout.mosaicTotalH_mm) * 100}%` : '100%',
                         objectFit: 'contain',
                         transform: `rotate(${mosaicImage.rotation || 0}deg)`
                       }}
                     />
-                  </div>
-                  <div className="absolute inset-0 pointer-events-none z-10">
-                    {Array.from({ length: layout.colsP - 1 }).map((_, i) => (
-                      <div key={`v-${i}`} className="absolute top-0 bottom-0 border-l-[3px] border-dashed border-red-500 shadow-sm opacity-90" style={{ left: `${((i + 1) / layout.colsP) * 100}%` }}>
-                        <div className="absolute top-2 -translate-x-1/2 bg-red-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-md whitespace-nowrap z-20 border border-white/50">Corte V</div>
-                      </div>
-                    ))}
-                    {Array.from({ length: layout.rowsP - 1 }).map((_, i) => (
-                      <div key={`h-${i}`} className="absolute left-0 right-0 border-t-[3px] border-dashed border-red-500 shadow-sm opacity-90" style={{ top: `${((i + 1) / layout.rowsP) * 100}%` }}>
-                        <div className="absolute left-2 -translate-y-1/2 bg-red-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-md whitespace-nowrap z-20 border border-white/50">Corte H</div>
-                      </div>
-                    ))}
-                  </div>
-                </>
-              )}
             </div>
+            <div className="absolute inset-0 pointer-events-none z-10">
+              {Array.from({ length: layout.colsP - 1 }).map((_, i) => (
+                <div key={`v-${i}`} className="absolute top-0 bottom-0 border-l-[3px] border-dashed border-red-500 shadow-sm opacity-90" style={{ left: `${((i + 1) / layout.colsP) * 100}%` }}>
+                        <div className="absolute top-2 -translate-x-1/2 bg-red-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-md whitespace-nowrap z-20 border border-white/50">Corte V</div>
+                </div>
+              ))}
+              {Array.from({ length: layout.rowsP - 1 }).map((_, i) => (
+                <div key={`h-${i}`} className="absolute left-0 right-0 border-t-[3px] border-dashed border-red-500 shadow-sm opacity-90" style={{ top: `${((i + 1) / layout.rowsP) * 100}%` }}>
+                        <div className="absolute left-2 -translate-y-1/2 bg-red-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-md whitespace-nowrap z-20 border border-white/50">Corte H</div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
 
-            {mosaicImage && (
+      {mosaicImage && (
               <div className="mt-6 bg-slate-800 text-white px-5 py-2.5 rounded-full shadow-xl text-xs font-bold flex items-center gap-3 z-20 sticky bottom-4 backdrop-blur-md bg-slate-800/90 border border-slate-600">
-                <Grid className="w-4 h-4 text-purple-400" />
+          <Grid className="w-4 h-4 text-purple-400" />
                 <span>
                   Tamaño Final Impreso: <span className="text-purple-300 text-sm">{Math.round(layout.realImageW_mm)} x {Math.round(layout.realImageH_mm)} mm</span>
                 </span>
-                <span className="w-px h-4 bg-slate-600 mx-1"></span>
-                <span><span className="text-purple-300">{layout.colsP} x {layout.rowsP}</span> Hojas</span>
-              </div>
-            )}
-          </div>
+          <span className="w-px h-4 bg-slate-600 mx-1"></span>
+          <span><span className="text-purple-300">{layout.colsP} x {layout.rowsP}</span> Hojas</span>
+        </div>
+      )}
+    </div>
         ) : (
           Array.from({ length: layout.totalPages }).map((_, pageIndex) => (
             <div key={pageIndex} className={`page-wrapper print-no-zoom-outer relative shrink-0 print:block print:overflow-visible ${pageIndex < layout.totalPages - 1 ? 'print:break-after-page' : ''}`} style={{ width: `${layout.pageWidthMm * zoom}mm`, height: `${layout.pageHeightMm * zoom}mm` }}>
-              <div className="bg-white shadow-xl print-no-zoom-inner transition-transform duration-300 origin-top-left print:shadow-none print:m-0 relative"
-                style={{
+          <div className="bg-white shadow-xl print-no-zoom-inner transition-transform duration-300 origin-top-left print:shadow-none print:m-0 relative"
+            style={{
                   width: `${layout.pageWidthMm}mm`,
                   height: `${layout.pageHeightMm}mm`,
-                  transform: `scale(${zoom})`,
+              transform: `scale(${zoom})`,
                   paddingTop: `${config.margins.top}mm`,
                   paddingRight: `${config.margins.right}mm`,
                   paddingBottom: `${config.margins.bottom}mm`,
                   paddingLeft: `${config.margins.left}mm`
-                }}>
+            }}>
 
                 {config.useMosaicMode ? (
-                  <MosaicCanvas
+              <MosaicCanvas
                     mosaicImage={mosaicImage}
                     config={config}
                     pageIndex={pageIndex}
@@ -254,36 +256,37 @@ export default function MainCanvas({
                     onToggleFit={onToggleMosaicFit}
                     onRotate={onRotateMosaic}
                     onRemove={onRemoveMosaic}
-                  />
-                ) : (
-                  <div className={`w-full h-full grid relative ${!config.printGuides ? 'print:!border-none' : ''}`}
-                    style={{
-                      gridTemplateColumns: config.useCustomSize ? `repeat(${layout.cols}, ${layout.cellWMm}mm)` : `repeat(${layout.cols}, 1fr)`,
-                      gridTemplateRows: config.useCustomSize ? `repeat(${layout.rows}, ${layout.cellHMm}mm)` : `repeat(${layout.rows}, 1fr)`,
-                      gap: `${config.gap}mm`,
-                      border: config.showGuides ? '1px dashed #e2e8f0' : 'none',
-                      justifyContent: config.useCustomSize ? 'center' : 'stretch',
-                      alignContent: config.useCustomSize ? 'start' : 'stretch'
-                    }}>
+              />
+            ) : (
+              <div className={`w-full h-full grid relative ${!config.printGuides ? 'print:!border-none' : ''}`}
+                style={{
+                  gridTemplateColumns: config.useCustomSize ? `repeat(${layout.cols}, ${layout.cellWMm}mm)` : `repeat(${layout.cols}, 1fr)`,
+                  gridTemplateRows: config.useCustomSize ? `repeat(${layout.rows}, ${layout.cellHMm}mm)` : `repeat(${layout.rows}, 1fr)`,
+                  gap: `${config.gap}mm`,
+                  border: config.showGuides ? '1px dashed #e2e8f0' : 'none',
+                  justifyContent: config.useCustomSize ? 'center' : 'stretch',
+                  alignContent: config.useCustomSize ? 'start' : 'stretch'
+                }}>
 
-                    {Array.from({ length: layout.itemsPerPage }).map((_, cellIndex) => {
-                      const imgIndex = pageIndex * layout.itemsPerPage + cellIndex;
-                      const img = images[imgIndex];
+                {Array.from({ length: layout.itemsPerPage }).map((_, cellIndex) => {
+                  const imgIndex = pageIndex * layout.itemsPerPage + cellIndex;
+                  const img = images[imgIndex];
                       const isRotated90 = img && (Math.abs(img.rotation) % 180 === 90);
 
-                      let dynamicStyle = {};
-                      if (img) {
-                        const cellRatio = layout.cellWidthPx / layout.cellHeightPx;
+                  // Estilos dinámicos para Grid
+                  let dynamicStyle = {};
+                  if (img) {
+                    const cellRatio = layout.cellWidthPx / layout.cellHeightPx;
                         const imgWidth = isRotated90 ? (img.naturalHeight || 1) : (img.naturalWidth || 1);
                         const imgHeight = isRotated90 ? (img.naturalWidth || 1) : (img.naturalHeight || 1);
 
-                        dynamicStyle = {
-                          transform: `translate(calc(-50% + ${img.x}px), calc(-50% + ${img.y}px)) rotate(${img.rotation}deg)`,
+                    dynamicStyle = {
+                      transform: `translate(calc(-50% + ${img.x}px), calc(-50% + ${img.y}px)) rotate(${img.rotation}deg)`,
                           position: 'absolute', top: '50%', left: '50%', maxWidth: 'none', maxHeight: 'none',
                           cursor: img.objectFit === 'cover' ? 'grab' : 'default'
-                        };
+                    };
 
-                        if (img.objectFit === 'contain') {
+                    if (img.objectFit === 'contain') {
                           if (isRotated90) { dynamicStyle.width = `${layout.cellHeightPx}px`; dynamicStyle.height = `${layout.cellWidthPx}px`; }
                           else { dynamicStyle.width = '100%'; dynamicStyle.height = '100%'; dynamicStyle.maxWidth = '100%'; dynamicStyle.maxHeight = '100%'; }
                           dynamicStyle.objectFit = 'contain'; dynamicStyle.objectPosition = 'center center';
@@ -292,50 +295,50 @@ export default function MainCanvas({
                           if (isRotated90) {
                             if (imgRatio > cellRatio) { dynamicStyle.width = `${layout.cellHeightPx}px`; dynamicStyle.height = 'auto'; }
                             else { dynamicStyle.height = `${layout.cellWidthPx}px`; dynamicStyle.width = 'auto'; }
-                          } else {
-                            if (imgRatio > cellRatio) { dynamicStyle.height = `${layout.cellHeightPx}px`; dynamicStyle.width = 'auto'; }
-                            else { dynamicStyle.width = `${layout.cellWidthPx}px`; dynamicStyle.height = 'auto'; }
+                    } else {
+                      if (imgRatio > cellRatio) { dynamicStyle.height = `${layout.cellHeightPx}px`; dynamicStyle.width = 'auto'; }
+                      else { dynamicStyle.width = `${layout.cellWidthPx}px`; dynamicStyle.height = 'auto'; }
                           }
-                        }
-                      }
+                    }
+                  }
 
-                      return (
+                  return (
                         <div
                           key={cellIndex}
                           className={`relative overflow-hidden group select-none ${!img ? 'flex items-center justify-center border-2 border-dashed border-slate-200 hover:border-blue-300 hover:bg-blue-50/30 transition-colors' : ''} ${!config.printGuides && !img ? 'print:!border-none' : ''} ${!img && imgIndex === images.length && images.length === 0 ? 'animate-pulse' : ''} cell-container`}
-                          style={config.useCustomSize ? { width: `${layout.cellWMm}mm`, height: `${layout.cellHMm}mm` } : {}}
+                      style={config.useCustomSize ? { width: `${layout.cellWMm}mm`, height: `${layout.cellHMm}mm` } : {}}
                           onContextMenu={(e) => handleContextMenu(e, img ? img.id : null)}
                         >
                           <div className="absolute top-1 left-1 print:hidden opacity-0 group-hover:opacity-100 pointer-events-none z-20"><span className="text-[9px] bg-black/50 text-white px-1.5 py-0.5 rounded backdrop-blur-sm">{convert(layout.cellWMm, 'mm')} x {convert(layout.cellHMm, 'mm')} mm</span></div>
 
-                          {!img ? (
-                            (imgIndex <= images.length) ? (
-                              <div className="text-slate-300 flex flex-col items-center justify-center cursor-pointer w-full h-full print:hidden" onClick={onUploadClick}><Plus className="w-6 h-6 opacity-50" /></div>
-                            ) : null
-                          ) : (
-                            <>
+                      {!img ? (
+                        (imgIndex <= images.length) ? (
+                          <div className="text-slate-300 flex flex-col items-center justify-center cursor-pointer w-full h-full print:hidden" onClick={onUploadClick}><Plus className="w-6 h-6 opacity-50" /></div>
+                        ) : null
+                      ) : (
+                        <>
                               <img src={img.src} alt={`print-${imgIndex}`} className="transition-transform duration-75 block" style={dynamicStyle} onMouseDown={(e) => onImageMouseDown(e, img)} onLoad={(e) => onImageLoad(img.id, e)} draggable={false} />
 
                               <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors print:hidden flex items-start justify-end p-2 gap-1 opacity-0 group-hover:opacity-100 pointer-events-none">
-                                <div className="pointer-events-auto flex gap-1">
+                            <div className="pointer-events-auto flex gap-1">
                                   <button onClick={() => onFillPage(img, layout.itemsPerPage)} className="bg-white text-slate-700 p-1.5 rounded shadow-sm hover:bg-blue-50 hover:text-blue-600 transition" title="Rellenar página"><Grid className="w-4 h-4" /></button>
                                   <button onClick={() => onToggleObjectFit(img.id)} className="bg-white text-slate-700 p-1.5 rounded shadow-sm hover:bg-blue-50 hover:text-blue-600 transition" title={img.objectFit === 'cover' ? "Completa" : "Relleno"}><Scaling className="w-4 h-4" /></button>
                                   <button onClick={() => onRotateImage(img.id)} className="bg-white text-slate-700 p-1.5 rounded shadow-sm hover:bg-blue-50 hover:text-blue-600 transition" title="Rotar"><RotateCw className="w-4 h-4" /></button>
                                   <button onClick={() => onDuplicateImage(img)} className="bg-white text-slate-700 p-1.5 rounded shadow-sm hover:bg-blue-50 hover:text-blue-600 transition" title="Duplicar"><Copy className="w-4 h-4" /></button>
                                   <button onClick={() => onRemoveImage(img.id)} className="bg-white text-red-500 p-1.5 rounded shadow-sm hover:bg-red-50 transition" title="Eliminar"><X className="w-4 h-4" /></button>
-                                </div>
-                              </div>
+                            </div>
+                          </div>
                               <div className="absolute bottom-1 right-1 print:hidden opacity-0 group-hover:opacity-100 pointer-events-none"><span className="text-[9px] bg-black/50 text-white px-1 rounded backdrop-blur-sm">{img.objectFit === 'cover' ? 'Relleno' : 'Completa'}</span></div>
-                            </>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
-              <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 text-xs text-slate-400 font-bold print:hidden">Página {pageIndex + 1} de {layout.totalPages}</div>
-            </div>
+            )}
+          </div>
+          <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 text-xs text-slate-400 font-bold print:hidden">Página {pageIndex + 1} de {layout.totalPages}</div>
+        </div>
           ))
         )}
       </div>

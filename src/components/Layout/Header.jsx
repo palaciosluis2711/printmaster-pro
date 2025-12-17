@@ -22,26 +22,34 @@ export default function Header({
   mosaicImage
 }) {
 
-  // 1. Determinar si se muestra el botón de carga
-  // Solo se muestra si estamos en una vista funcional: Grid, Mosaic o Custom
+  // --- 1. LÓGICA DEL BOTÓN DE CARGA ---
+  // Mostrar solo en vistas funcionales
   let showUploadBtn = ['grid', 'mosaic', 'custom'].includes(activeView);
 
-  // EXCEPCIÓN: Si estamos en modo mosaico y YA se procesaron las páginas (!isMosaicPreview),
-  // ocultamos el botón de carga para evitar cambios accidentales en la vista de impresión.
+  // Excepción: Ocultar en Mosaico si ya está procesado (para no cambiar la imagen base en ese punto)
   if (isMosaicMode && !isMosaicPreview) {
     showUploadBtn = false;
   }
 
-  // 2. Determinar el texto del botón
-  let uploadBtnText = "Subir Fotos"; // Default para Grid/Custom
-
+  // Texto dinámico
+  let uploadBtnText = "Subir Fotos";
   if (isMosaicMode) {
-    // En modo mosaico cambia según si hay imagen o no
     uploadBtnText = mosaicImage ? "Cambiar Imagen" : "Cargar Imagen";
   }
 
-  // 3. Determinar estado del botón Imprimir
-  const isPrintDisabled = isMosaicMode && isMosaicPreview;
+  // --- 2. LÓGICA DEL BOTÓN IMPRIMIR ---
+  let showPrintBtn = false;
+
+  if (activeView === 'mosaic') {
+    // En Mosaico: Solo mostrar si YA se procesaron las páginas (no está en preview)
+    if (!isMosaicPreview) {
+      showPrintBtn = true;
+    }
+  } else if (['grid', 'custom'].includes(activeView)) {
+    // En Retícula/Personalizado: Siempre mostrar (las páginas están listas)
+    showPrintBtn = true;
+  }
+  // En home, settings, favorites se mantiene en false
 
   return (
     <header className="bg-blue-700 text-white p-3 shadow-md flex justify-between items-center z-20 print:hidden">
@@ -76,7 +84,7 @@ export default function Header({
           <Settings className="w-5 h-5" />
         </button>
 
-        {/* BOTÓN DE CARGA DINÁMICO */}
+        {/* BOTÓN DE CARGA */}
         {showUploadBtn && (
           <label className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded-lg cursor-pointer font-medium text-sm transition shadow-sm">
             <Upload className="w-4 h-4" />
@@ -91,15 +99,16 @@ export default function Header({
           </label>
         )}
 
-        <button
-          onClick={() => !isPrintDisabled && window.print()}
-          disabled={isPrintDisabled}
-          className={`flex items-center gap-2 px-5 py-2 rounded-lg font-bold text-sm shadow-sm transition ${isPrintDisabled ? 'bg-slate-400 text-slate-200 cursor-not-allowed' : 'bg-emerald-500 hover:bg-emerald-400 text-white'
-            }`}
-          title={isPrintDisabled ? "Debes procesar las páginas antes de imprimir" : "Imprimir documento"}
-        >
-          <Printer className="w-4 h-4" /> Imprimir
-        </button>
+        {/* BOTÓN IMPRIMIR (Renderizado Condicional) */}
+        {showPrintBtn && (
+          <button
+            onClick={() => window.print()}
+            className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-white px-5 py-2 rounded-lg font-bold text-sm shadow-sm transition animate-in fade-in zoom-in-95 duration-200"
+            title="Imprimir documento"
+          >
+            <Printer className="w-4 h-4" /> Imprimir
+          </button>
+        )}
       </div>
     </header>
   );

@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { LayoutGrid, Grid, Ruler, ArrowRight, Star } from 'lucide-react'; // Iconos para las tarjetas
+import React, { useState, useMemo, useEffect } from 'react';
+import { LayoutGrid, Grid, Ruler, ArrowRight, Star, Type } from 'lucide-react'; // Iconos para el dashboard
 
 // --- HOOKS Y UTILIDADES ---
 import { useAuth } from './hooks/useAuth';
@@ -14,18 +14,34 @@ import EditModal from './components/Modals/EditModal';
 import SettingsModal from './components/Modals/SettingsModal';
 import ContextMenu from './components/Modals/ContextMenu';
 
+const STORAGE_KEY_VIEW = 'printmaster_active_view_v2';
+
 export default function App() {
+  // 1. Inicializamos la lógica del estudio
   const studio = usePrintStudio();
+
+  // Desestructuramos las props necesarias del hook para pasarlas a los componentes
+  const {
+    activeView, setActiveView,
+    allConfigs, setAllConfigs,
+    config, favorites, unit,
+    // Props de Banner
+    isBannerPreview, setIsBannerPreview, updateBannerConfig
+  } = studio;
+
+  // 2. Inicializamos la autenticación
   const auth = useAuth({
-    config: studio.config,
+    config: studio.config, // Aunque usamos allConfigs abajo, mantenemos compatibilidad
     favorites: studio.favorites,
     unit: studio.unit,
     setConfig: studio.setConfig,
     setFavorites: studio.setFavorites,
-    setUnit: studio.setUnit
+    setUnit: studio.setUnit,
+    allConfigs: studio.allConfigs,
+    setAllConfigs: studio.setAllConfigs
   });
 
-  const [activeView, setActiveView] = useState('home');
+  // 3. Estados UI Locales
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [contextMenu, setContextMenu] = useState({ visible: false, x: 0, y: 0, imageId: null });
   const [editModalData, setEditModalData] = useState({
@@ -35,7 +51,13 @@ export default function App() {
     flipH: false, flipV: false, cropShape: 'rect', keepAspectRatio: false
   });
 
+  // --- LOGICA DE UI AUXILIAR ---
   const totalPagesUI = useMemo(() => {
+    // Si es Banner, el cálculo se hace dentro de MainCanvas/BannerCanvas dinámicamente
+    // Pero para el sidebar, podríamos necesitar un estimado.
+    // Por ahora, para Banner devolvemos 0 o un placeholder ya que el cálculo es complejo y depende del renderizado de texto.
+    if (activeView === 'banner') return '?';
+
     if (studio.config.useMosaicMode) {
       if (!studio.mosaicImage) return 1;
       if (studio.config.mosaicType === 'pieces') {
@@ -55,8 +77,9 @@ export default function App() {
       const itemsPerPage = studio.config.cols * studio.config.rows;
       return Math.max(1, Math.ceil(studio.images.length / itemsPerPage));
     }
-  }, [studio.config, studio.images.length, studio.mosaicImage]);
+  }, [studio.config, studio.images.length, studio.mosaicImage, activeView]);
 
+  // Context Menu Handler
   const handleContextMenu = (e, imgId) => {
     e.preventDefault();
     const x = Math.min(e.clientX, window.innerWidth - 220);
@@ -64,6 +87,7 @@ export default function App() {
     setContextMenu({ visible: true, x, y, imageId: imgId });
   };
 
+  // Pegar desde portapapeles
   const handlePasteFromMenu = async () => {
     try {
       if (!navigator.clipboard || !navigator.clipboard.read) {
@@ -89,6 +113,7 @@ export default function App() {
     setContextMenu(prev => ({ ...prev, visible: false }));
   };
 
+  // Abrir Editor
   const openEditModal = () => {
     const { useMosaicMode } = studio.config;
     if (useMosaicMode) {
@@ -117,6 +142,7 @@ export default function App() {
     setContextMenu(prev => ({ ...prev, visible: false }));
   };
 
+  // Guardar Edición
   const handleEditSave = (newUrl, w, h) => {
     if (studio.config.useMosaicMode) {
       studio.setMosaicImage(prev => ({
@@ -137,18 +163,18 @@ export default function App() {
     setEditModalData(prev => ({ ...prev, visible: false }));
   };
 
-  // Función para cargar un favorito desde el Dashboard
+  // Cargar favorito desde el dashboard
   const loadFavoriteFromDashboard = (favConfig) => {
-    studio.setConfig(favConfig);
-    // Lógica de navegación inteligente
-    if (favConfig.useMosaicMode) setActiveView('mosaic');
+    studio.setConfig(() => favConfig);
+    if (favConfig.isBannerMode) setActiveView('banner'); // Detectar banner
+    else if (favConfig.useMosaicMode) setActiveView('mosaic');
     else if (favConfig.useCustomSize) setActiveView('custom');
     else setActiveView('grid');
   };
 
-  const showCanvas = ['grid', 'mosaic', 'custom'].includes(activeView);
+  const showCanvas = ['grid', 'mosaic', 'custom', 'banner'].includes(activeView);
 
-  // Obtener los últimos 3 favoritos (invertimos el array para ver los más recientes)
+  // Obtener los últimos 3 favoritos para el dashboard
   const recentFavorites = [...studio.favorites].reverse().slice(0, 3);
 
   return (
@@ -193,6 +219,10 @@ export default function App() {
           minMosaicDimensions={studio.minMosaicDimensions}
           activeView={activeView}
           setActiveView={setActiveView}
+          // PROPS DE BANNER
+          isBannerPreview={isBannerPreview}
+          setIsBannerPreview={setIsBannerPreview}
+          updateBannerConfig={updateBannerConfig}
         />
 
         {showCanvas ? (
@@ -215,23 +245,24 @@ export default function App() {
             onToggleMosaicFit={studio.toggleMosaicFit}
             onRemoveMosaic={studio.removeMosaicImage}
             onUploadClick={() => document.querySelector('input[type="file"]').click()}
+            // PROPS DE BANNER
+            activeView={activeView}
+            isBannerPreview={isBannerPreview}
           />
         ) : (
           /* --- DASHBOARD PRINCIPAL (HOME) --- */
           <div className="flex-1 bg-slate-200/50 flex flex-col items-center justify-center print:hidden p-8 overflow-y-auto">
 
             {activeView === 'home' ? (
-              <div className="max-w-4xl w-full">
-                {/* Header del Dashboard */}
+              <div className="max-w-4xl w-full animate-in fade-in zoom-in-95 duration-500">
                 <div className="text-center mb-10">
                   <h2 className="text-3xl font-bold text-slate-700 mb-2">Bienvenido a PrintMaster Pro</h2>
                   <p className="text-slate-500">Selecciona una función en el menú lateral o carga un favorito reciente.</p>
                 </div>
 
-                {/* Sección de Recientes */}
                 {recentFavorites.length > 0 && (
-                  <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-                    <div className="flex items-center gap-2 mb-4">
+                  <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 delay-100">
+                    <div className="flex items-center gap-2 mb-4 px-1">
                       <Star className="w-5 h-5 text-amber-500 fill-amber-500" />
                       <h3 className="text-lg font-bold text-slate-600">Recientes</h3>
                     </div>
@@ -241,17 +272,18 @@ export default function App() {
                         <button
                           key={fav.id}
                           onClick={() => loadFavoriteFromDashboard(fav.config)}
-                          className="bg-white p-5 rounded-xl shadow-sm border border-slate-200 hover:shadow-md hover:border-blue-300 hover:-translate-y-1 transition-all group text-left"
+                          className="bg-white p-5 rounded-xl shadow-sm border border-slate-200 hover:shadow-md hover:border-blue-300 hover:-translate-y-1 transition-all group text-left relative overflow-hidden"
                         >
+                          <div className="absolute top-0 left-0 w-1 h-full bg-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
                           <div className="flex justify-between items-start mb-3">
-                            <div className={`p-2 rounded-lg ${fav.config.useMosaicMode ? 'bg-purple-100 text-purple-600' : (fav.config.useCustomSize ? 'bg-emerald-100 text-emerald-600' : 'bg-blue-100 text-blue-600')}`}>
-                              {fav.config.useMosaicMode ? <LayoutGrid className="w-6 h-6" /> : (fav.config.useCustomSize ? <Ruler className="w-6 h-6" /> : <Grid className="w-6 h-6" />)}
+                            <div className={`p-2 rounded-lg ${fav.config.isBannerMode ? 'bg-pink-100 text-pink-600' : (fav.config.useMosaicMode ? 'bg-purple-100 text-purple-600' : (fav.config.useCustomSize ? 'bg-emerald-100 text-emerald-600' : 'bg-blue-100 text-blue-600'))}`}>
+                              {fav.config.isBannerMode ? <Type className="w-6 h-6" /> : (fav.config.useMosaicMode ? <LayoutGrid className="w-6 h-6" /> : (fav.config.useCustomSize ? <Ruler className="w-6 h-6" /> : <Grid className="w-6 h-6" />))}
                             </div>
                             <ArrowRight className="w-4 h-4 text-slate-300 group-hover:text-blue-500 transition-colors" />
                           </div>
                           <h4 className="font-bold text-slate-800 mb-1 truncate">{fav.name}</h4>
                           <p className="text-xs text-slate-500">
-                            {fav.config.useMosaicMode ? 'Mosaico' : (fav.config.useCustomSize ? 'Personalizado' : 'Retícula')} • {PAGE_SIZES[fav.config.pageSize]?.name.split('(')[0]}
+                            {fav.config.isBannerMode ? 'Texto Gigante' : (fav.config.useMosaicMode ? 'Mosaico' : (fav.config.useCustomSize ? 'Personalizado' : 'Retícula'))} • {PAGE_SIZES[fav.config.pageSize]?.name.split('(')[0]}
                           </p>
                         </button>
                       ))}
@@ -259,17 +291,18 @@ export default function App() {
                   </div>
                 )}
 
-                {/* Empty State si no hay favoritos */}
                 {recentFavorites.length === 0 && (
-                  <div className="flex flex-col items-center justify-center h-48 border-2 border-dashed border-slate-300 rounded-xl text-slate-400">
+                  <div className="flex flex-col items-center justify-center h-48 border-2 border-dashed border-slate-300 rounded-xl text-slate-400 bg-white/50">
                     <Star className="w-10 h-10 mb-2 opacity-20" />
                     <p>No tienes configuraciones guardadas recientemente.</p>
                   </div>
                 )}
               </div>
             ) : (
-              // Para Settings o vistas futuras vacías
-              <div className="text-slate-400 font-medium">Configuración Global</div>
+              <div className="flex flex-col items-center justify-center text-slate-400">
+                <div className="w-16 h-16 bg-slate-300/30 rounded-full mb-4"></div>
+                <p className="font-medium">Configuración Global</p>
+              </div>
             )}
           </div>
         )}

@@ -6,7 +6,7 @@ import {
   Plus
 } from 'lucide-react';
 
-import { UNITS } from '../../constants/printSettings';
+import { PAGE_SIZES, UNITS } from '../../constants/printSettings';
 import { convert, toMm } from '../../utils/measurements';
 import InputNumber from '../UI/ImputNumber';
 import { PaperSettings, MarginSettings, PrintGuidesFooter } from './SidebarSections';
@@ -33,34 +33,28 @@ export default function Sidebar({
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [newFavName, setNewFavName] = useState('');
 
-  // --- HANDLERS DE NAVEGACIÓN Y MODO ---
-
+  // --- HANDLERS DE NAVEGACIÓN ---
   const navigateTo = (view) => {
     setActiveView(view);
     setShowSaveModal(false);
-
-    if (view === 'grid') {
-      setConfig(prev => ({ ...prev, useMosaicMode: false, useCustomSize: false }));
-    } else if (view === 'mosaic') {
-      setConfig(prev => ({ ...prev, useMosaicMode: true }));
-    } else if (view === 'custom') {
-      setConfig(prev => ({ ...prev, useMosaicMode: false, useCustomSize: true }));
-    }
+    // usePrintStudio se encarga de cambiar la config interna
   };
 
   // --- HANDLERS ESPECÍFICOS ---
-
   const rotateAllImages = () => {
     setImages(prev => prev.map(img => ({ ...img, rotation: (img.rotation + 90) % 360, x: 0, y: 0 })));
   };
 
   const updateMosaicSize = (dim, val) => {
     if (!mosaicImage) return;
-    const valInMm = toMm(Number(val), unit);
+
     const minValMm = dim === 'width'
       ? (minMosaicDimensions ? minMosaicDimensions.width : 10)
       : (minMosaicDimensions ? minMosaicDimensions.height : 10);
+
+    const valInMm = toMm(Number(val), unit);
     const finalMm = Math.max(minValMm, valInMm);
+
     const ratio = mosaicImage.naturalWidth / mosaicImage.naturalHeight;
 
     if (dim === 'width') {
@@ -237,7 +231,17 @@ export default function Sidebar({
           {config.mosaicType === 'pieces' ? (
             <div>
               <label className={`text-[9px] font-bold ${!isMosaicPreview ? 'text-slate-400' : 'text-purple-800'}`}>Páginas de Ancho</label>
-              <input type="number" min="1" value={config.mosaicCols} onChange={(e) => { const val = Math.max(1, Number(e.target.value)); setConfig({ ...config, mosaicCols: val, mosaicRows: val }); }} className="w-full text-xs border border-purple-200 rounded p-1" disabled={!isMosaicPreview} />
+              <input
+                type="number"
+                min="1"
+                value={config.mosaicCols}
+                onChange={(e) => {
+                  const val = Math.max(1, Number(e.target.value));
+                  setConfig({ ...config, mosaicCols: val, mosaicRows: val });
+                }}
+                className="w-full text-xs border border-purple-200 rounded p-1"
+                disabled={!isMosaicPreview}
+              />
               <p className={`text-[9px] mt-1 italic text-center ${!isMosaicPreview ? 'text-slate-300' : 'text-purple-500'}`}>Equivale a una cuadrícula de {config.mosaicCols} x {config.mosaicCols}</p>
             </div>
           ) : (
@@ -245,11 +249,27 @@ export default function Sidebar({
               <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-slate-300 z-10 bg-purple-50 p-1 rounded-full"><Lock className="w-3 h-3" /></div>
               <div>
                 <label className={`text-[9px] font-bold ${!isMosaicPreview ? 'text-slate-400' : 'text-purple-800'}`}>Ancho ({UNITS[unit].label})</label>
-                <InputNumber valueMm={config.mosaicTargetWidth} unit={unit} step={UNITS[unit].step} min={minMosaicDimensions ? minMosaicDimensions.width : 10} onChange={(val) => updateMosaicSize('width', val)} className="w-full text-xs border border-purple-200 rounded p-1" disabled={!isMosaicPreview} />
+                <InputNumber
+                  valueMm={config.mosaicTargetWidth}
+                  unit={unit}
+                  step={UNITS[unit].step}
+                  min={minMosaicDimensions ? minMosaicDimensions.width : 10}
+                  onChange={(val) => updateMosaicSize('width', val)}
+                  className="w-full text-xs border border-purple-200 rounded p-1"
+                  disabled={!isMosaicPreview}
+                />
               </div>
               <div>
                 <label className={`text-[9px] font-bold ${!isMosaicPreview ? 'text-slate-400' : 'text-purple-800'}`}>Alto ({UNITS[unit].label})</label>
-                <InputNumber valueMm={config.mosaicTargetHeight} unit={unit} step={UNITS[unit].step} min={minMosaicDimensions ? minMosaicDimensions.height : 10} onChange={(val) => updateMosaicSize('height', val)} className="w-full text-xs border border-purple-200 rounded p-1" disabled={!isMosaicPreview} />
+                <InputNumber
+                  valueMm={config.mosaicTargetHeight}
+                  unit={unit}
+                  step={UNITS[unit].step}
+                  min={minMosaicDimensions ? minMosaicDimensions.height : 10}
+                  onChange={(val) => updateMosaicSize('height', val)}
+                  className="w-full text-xs border border-purple-200 rounded p-1"
+                  disabled={!isMosaicPreview}
+                />
               </div>
             </div>
           )}
@@ -272,7 +292,18 @@ export default function Sidebar({
         </div>
       </section>
 
-      <PrintGuidesFooter config={config} setConfig={setConfig} />
+      {/* CHECKBOX ESPECÍFICO PARA MOSAICO (Reemplaza al PrintGuidesFooter) */}
+      <div className="flex items-center gap-2 mt-auto pt-4 border-t border-slate-100">
+        <input
+          type="checkbox" id="mosaicGuides"
+          checked={config.printGuides}
+          onChange={(e) => setConfig({ ...config, printGuides: e.target.checked })}
+          className="rounded text-purple-600 focus:ring-purple-500"
+        />
+        <label htmlFor="mosaicGuides" className="text-xs font-medium text-purple-700 cursor-pointer select-none">
+          Imprimir guías de margen
+        </label>
+      </div>
     </div>
   );
 
@@ -283,7 +314,6 @@ export default function Sidebar({
           <h3 className="text-xs font-bold text-slate-500 uppercase flex items-center gap-2">
             <Cloud className="w-3 h-3" /> Mis Favoritos
           </h3>
-          {/* SIN BOTÓN NUEVO */}
         </div>
 
         {favorites.length === 0 ? (
@@ -294,7 +324,6 @@ export default function Sidebar({
               <li key={fav.id} className="flex justify-between items-center group bg-white p-2 rounded border border-slate-100 hover:border-blue-300 hover:shadow-sm transition-all">
                 <button onClick={() => {
                   setConfig(fav.config);
-                  // Detectar modo para navegar a la vista correcta automáticamente
                   if (fav.config.useMosaicMode) navigateTo('mosaic');
                   else if (fav.config.useCustomSize) navigateTo('custom');
                   else navigateTo('grid');
@@ -342,12 +371,10 @@ export default function Sidebar({
     </div>
   );
 
-  // --- VARIABLES PARA UI ---
-  const showSaveButton = ['grid', 'mosaic', 'custom'].includes(activeView);
+  const showSaveButton = ['grid', 'custom'].includes(activeView);
 
   return (
     <aside className="w-80 bg-white border-r border-slate-200 overflow-y-auto flex flex-col shadow-sm z-10 print:hidden h-full">
-      {/* HEADER DEL SIDEBAR */}
       <div className="p-4 border-b border-slate-100 flex items-center gap-2 sticky top-0 bg-white/95 backdrop-blur z-20">
         {activeView !== 'home' ? (
           <button onClick={() => navigateTo('home')} className="p-1 rounded hover:bg-slate-100 text-slate-500 hover:text-slate-800 transition">
@@ -364,7 +391,6 @@ export default function Sidebar({
           {activeView === 'settings' && 'Ajustes'}
         </h2>
 
-        {/* Botón de Guardar en Header (Solo en vistas funcionales) */}
         {showSaveButton ? (
           <button
             onClick={() => setShowSaveModal(true)}
@@ -378,7 +404,6 @@ export default function Sidebar({
         )}
       </div>
 
-      {/* CONTENIDO SCROLLABLE */}
       <div className="p-5 flex-1 overflow-y-auto">
         {activeView === 'home' && renderHome()}
         {activeView === 'grid' && renderGridMode()}
@@ -388,7 +413,6 @@ export default function Sidebar({
         {activeView === 'settings' && renderSettingsMode()}
       </div>
 
-      {/* FOOTER GLOBAL */}
       {activeView === 'home' && (
         <div className="p-4 bg-slate-50 border-t border-slate-200 text-center">
           <p className="text-[10px] text-slate-400">PrintMaster Pro v2.0</p>

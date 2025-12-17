@@ -73,8 +73,8 @@ export default function MosaicCanvas({
 
     return (
         <div
-            // AÑADIDO: 'mosaic-container' para control de impresión en App.jsx
-            className="w-full h-full relative border border-purple-200 overflow-hidden mosaic-container"
+            // CORRECCIÓN: Borde condicional basado en el nuevo check 'Imprimir guías de margen'
+            className={`w-full h-full relative border overflow-hidden mosaic-container ${config.printGuides ? 'border-purple-200' : 'border-transparent'}`}
             onContextMenu={(e) => onContextMenu(e, 'mosaic')}
         >
             {!mosaicImage ? (
@@ -86,9 +86,7 @@ export default function MosaicCanvas({
                 <div className="w-full h-full relative group">
                     <div style={{ width: '100%', height: '100%', position: 'relative', overflow: 'hidden' }}>
                         <img src={mosaicImage.src} alt="Mosaic Part" style={style} />
-                        {config.showGuides && config.mosaicType !== 'pieces' && (
-                            <div className="absolute inset-0 border border-dashed border-purple-300 opacity-50 pointer-events-none"></div>
-                        )}
+                        {/* El borde punteado interno solo aparece en preview, aquí no lo tocamos */}
                     </div>
 
                     {(config.mosaicType === 'pieces' && config.mosaicCols === 1 && config.mosaicRows === 1) && (
