@@ -9,7 +9,10 @@ import { PAGE_SIZES } from './constants/printSettings';
 // --- COMPONENTES ---
 import Header from './components/Layout/Header';
 import Sidebar from './components/Layout/Sidebar';
-import MainCanvas from './components/Canvas/MainCanvas';
+import StandardGridCanvas from './components/Canvas/StandardGridCanvas';
+import CustomGridCanvas from './components/Canvas/CustomGridCanvas';
+import MosaicModeCanvas from './components/Canvas/MosaicModeCanvas';
+import BannerModeCanvas from './components/Canvas/BannerModeCanvas';
 import EditModal from './components/Modals/EditModal';
 import SettingsModal from './components/Modals/SettingsModal';
 import ContextMenu from './components/Modals/ContextMenu';
@@ -51,12 +54,13 @@ export default function App() {
     flipH: false, flipV: false, cropShape: 'rect', keepAspectRatio: false
   });
 
+  // Nuevo estado para las páginas del banner (calculado por el canvas)
+  const [bannerTotalPages, setBannerTotalPages] = useState(0);
+
   // --- LOGICA DE UI AUXILIAR ---
   const totalPagesUI = useMemo(() => {
-    // Si es Banner, el cálculo se hace dentro de MainCanvas/BannerCanvas dinámicamente
-    // Pero para el sidebar, podríamos necesitar un estimado.
-    // Por ahora, para Banner devolvemos 0 o un placeholder ya que el cálculo es complejo y depende del renderizado de texto.
-    if (activeView === 'banner') return '?';
+    // Si es Banner, usamos el estado reportado por el componente Canvas
+    if (activeView === 'banner') return bannerTotalPages;
 
     if (studio.config.useMosaicMode) {
       if (!studio.mosaicImage) return 1;
@@ -77,18 +81,20 @@ export default function App() {
       const itemsPerPage = studio.config.cols * studio.config.rows;
       return Math.max(1, Math.ceil(studio.images.length / itemsPerPage));
     }
-  }, [studio.config, studio.images.length, studio.mosaicImage, activeView]);
+  }, [studio.config, studio.images.length, studio.mosaicImage, activeView, bannerTotalPages]);
 
   // Context Menu Handler
   const handleContextMenu = (e, imgId) => {
+    // ... same as before
     e.preventDefault();
     const x = Math.min(e.clientX, window.innerWidth - 220);
     const y = Math.min(e.clientY, window.innerHeight - 150);
     setContextMenu({ visible: true, x, y, imageId: imgId });
   };
 
-  // Pegar desde portapapeles
+  // ... (Paste handler, Open Editor, etc. - keep unchanged)
   const handlePasteFromMenu = async () => {
+    // ...
     try {
       if (!navigator.clipboard || !navigator.clipboard.read) {
         alert("Tu navegador no permite acceso al portapapeles.");
@@ -115,6 +121,7 @@ export default function App() {
 
   // Abrir Editor
   const openEditModal = () => {
+    // ...
     const { useMosaicMode } = studio.config;
     if (useMosaicMode) {
       if (totalPagesUI !== 1) {
@@ -144,6 +151,7 @@ export default function App() {
 
   // Guardar Edición
   const handleEditSave = (newUrl, w, h) => {
+    // ...
     if (studio.config.useMosaicMode) {
       studio.setMosaicImage(prev => ({
         ...prev,
@@ -163,7 +171,8 @@ export default function App() {
     setEditModalData(prev => ({ ...prev, visible: false }));
   };
 
-  // Cargar favorito desde el dashboard
+
+  // ... (Favorite loaders)
   const loadFavoriteFromDashboard = (favConfig) => {
     studio.setConfig(() => favConfig);
     if (favConfig.isBannerMode) setActiveView('banner'); // Detectar banner
@@ -173,8 +182,6 @@ export default function App() {
   };
 
   const showCanvas = ['grid', 'mosaic', 'custom', 'banner'].includes(activeView);
-
-  // Obtener los últimos 3 favoritos para el dashboard
   const recentFavorites = [...studio.favorites].reverse().slice(0, 3);
 
   return (
@@ -186,7 +193,6 @@ export default function App() {
       }}
       onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
     >
-
       <Header
         user={auth.user}
         isSaving={auth.isSaving}
@@ -226,29 +232,65 @@ export default function App() {
         />
 
         {showCanvas ? (
-          <MainCanvas
-            zoom={studio.zoom}
-            setZoom={studio.setZoom}
-            config={studio.config}
-            images={studio.images}
-            mosaicImage={studio.mosaicImage}
-            isMosaicPreview={studio.isMosaicPreview}
-            handleContextMenu={handleContextMenu}
-            onImageMouseDown={studio.handleMouseDown}
-            onImageLoad={studio.handleImageLoad}
-            onRemoveImage={studio.removeImage}
-            onDuplicateImage={studio.duplicateImage}
-            onRotateImage={studio.rotateImage}
-            onToggleObjectFit={studio.toggleObjectFit}
-            onFillPage={studio.fillPage}
-            onRotateMosaic={studio.rotateMosaicImage}
-            onToggleMosaicFit={studio.toggleMosaicFit}
-            onRemoveMosaic={studio.removeMosaicImage}
-            onUploadClick={() => document.querySelector('input[type="file"]').click()}
-            // PROPS DE BANNER
-            activeView={activeView}
-            isBannerPreview={isBannerPreview}
-          />
+          <>
+            {activeView === 'grid' && (
+              <StandardGridCanvas
+                zoom={studio.zoom}
+                setZoom={studio.setZoom}
+                config={studio.config}
+                images={studio.images}
+                handleContextMenu={handleContextMenu}
+                onImageMouseDown={studio.handleMouseDown}
+                onImageLoad={studio.handleImageLoad}
+                onRemoveImage={studio.removeImage}
+                onDuplicateImage={studio.duplicateImage}
+                onRotateImage={studio.rotateImage}
+                onToggleObjectFit={studio.toggleObjectFit}
+                onFillPage={studio.fillPage}
+                onUploadClick={() => document.querySelector('input[type="file"]').click()}
+              />
+            )}
+            {activeView === 'custom' && (
+              <CustomGridCanvas
+                zoom={studio.zoom}
+                setZoom={studio.setZoom}
+                config={studio.config}
+                images={studio.images}
+                handleContextMenu={handleContextMenu}
+                onImageMouseDown={studio.handleMouseDown}
+                onImageLoad={studio.handleImageLoad}
+                onRemoveImage={studio.removeImage}
+                onDuplicateImage={studio.duplicateImage}
+                onRotateImage={studio.rotateImage}
+                onToggleObjectFit={studio.toggleObjectFit}
+                onFillPage={studio.fillPage}
+                onUploadClick={() => document.querySelector('input[type="file"]').click()}
+              />
+            )}
+            {activeView === 'mosaic' && (
+              <MosaicModeCanvas
+                zoom={studio.zoom}
+                setZoom={studio.setZoom}
+                config={studio.config}
+                mosaicImage={studio.mosaicImage}
+                isMosaicPreview={studio.isMosaicPreview}
+                handleContextMenu={handleContextMenu}
+                onUploadClick={() => document.querySelector('input[type="file"]').click()}
+                onRotateMosaic={studio.rotateMosaicImage}
+                onToggleMosaicFit={studio.toggleMosaicFit}
+                onRemoveMosaic={studio.removeMosaicImage}
+              />
+            )}
+            {activeView === 'banner' && (
+              <BannerModeCanvas
+                zoom={studio.zoom}
+                setZoom={studio.setZoom}
+                config={studio.config}
+                isBannerPreview={isBannerPreview}
+                onTotalPagesChange={setBannerTotalPages}
+              />
+            )}
+          </>
         ) : (
           /* --- DASHBOARD PRINCIPAL (HOME) --- */
           <div className="flex-1 bg-slate-200/50 flex flex-col items-center justify-center print:hidden p-8 overflow-y-auto">

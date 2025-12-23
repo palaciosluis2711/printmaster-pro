@@ -40,14 +40,24 @@ export function usePrintStudio() {
       cols: 2, rows: 2,
       customWidth: 50, customHeight: 50, customMaxItems: 0,
       mosaicCols: 1, mosaicRows: 1, mosaicTargetWidth: 200, mosaicTargetHeight: 200,
-      mosaicType: 'pieces'
+      mosaicType: 'pieces',
+      // Banner defaults
+      bannerText: 'TEXTO',
+      bannerHeight: 100,
+      bannerFont: 'Arial',
+      bannerColor: '#000000',
+      // Refactored styles for multi-select
+      isItalic: false,
+      isOutline: false,
+      bannerStrokeWidth: 1
     };
 
     // Configuraciones por defecto para cada modo
     const defaults = {
       grid: { ...baseDefaults, useMosaicMode: false, useCustomSize: false },
       mosaic: { ...baseDefaults, useMosaicMode: true, useCustomSize: false },
-      custom: { ...baseDefaults, useMosaicMode: false, useCustomSize: true }
+      custom: { ...baseDefaults, useMosaicMode: false, useCustomSize: true },
+      banner: { ...baseDefaults, isBannerMode: true }
     };
 
     if (typeof window !== 'undefined') {
@@ -59,7 +69,8 @@ export function usePrintStudio() {
           return {
             grid: { ...defaults.grid, ...(parsed.grid || {}) },
             mosaic: { ...defaults.mosaic, ...(parsed.mosaic || {}) },
-            custom: { ...defaults.custom, ...(parsed.custom || {}) }
+            custom: { ...defaults.custom, ...(parsed.custom || {}) },
+            banner: { ...defaults.banner, ...(parsed.banner || {}) }
           };
         } catch (e) { console.error("Error loading configs:", e); }
       }
@@ -80,7 +91,7 @@ export function usePrintStudio() {
   // Determinamos qué config usar basándonos en la vista actual
   // Si estamos en 'home', 'settings' o 'favorites', usamos 'grid' por defecto para evitar errores,
   // pero la UI no mostrará los controles de todas formas.
-  const currentMode = ['grid', 'mosaic', 'custom'].includes(activeView) ? activeView : 'grid';
+  const currentMode = ['grid', 'mosaic', 'custom', 'banner'].includes(activeView) ? activeView : 'grid';
 
   const config = allConfigs[currentMode];
 
@@ -110,11 +121,28 @@ export function usePrintStudio() {
   useEffect(() => { localStorage.setItem(STORAGE_KEY_FAVS, JSON.stringify(favorites)); }, [favorites]);
 
 
-  // --- ESTADOS DE SESIÓN (No persistentes) ---
-  const [images, setImages] = useState([]);
-  const [mosaicImage, setMosaicImage] = useState(null);
+  // --- ESTADOS DE SESIÓN (No persistentes y ISOLATED) ---
+  // Ahora separamos las imágenes por modo.
+  const [gridImages, setGridImages] = useState([]);
+  const [customImages, setCustomImages] = useState([]);
+  const [mosaicImage, setMosaicImage] = useState(null); // Mosaic tiene su propio estado dedicado
+
+  // Computed property para obtener/setear las imágenes del modo actual
+  const images = currentMode === 'custom' ? customImages : gridImages;
+
+  const setImages = (newImagesOrFn) => {
+    if (currentMode === 'custom') {
+      setCustomImages(newImagesOrFn);
+    } else {
+      // Por defecto 'grid'
+      setGridImages(newImagesOrFn);
+    }
+    // Nota: Mosaic usa setMosaicImage directamente, Banner no usa lista de imágenes.
+  };
+
   const [zoom, setZoom] = useState(0.8);
   const [isMosaicPreview, setIsMosaicPreview] = useState(true);
+  const [isBannerPreview, setIsBannerPreview] = useState(true); // Nuevo estado para Banner
   const [minMosaicDimensions, setMinMosaicDimensions] = useState({ width: 10, height: 10 });
   const dragRef = useRef(null);
 
@@ -142,7 +170,7 @@ export function usePrintStudio() {
   const handleFiles = (files) => {
     if (!files || files.length === 0) return;
 
-    if (config.useMosaicMode) {
+    if (currentMode === 'mosaic') {
       const file = files[0];
       const url = URL.createObjectURL(file);
       const img = new Image();
@@ -167,7 +195,7 @@ export function usePrintStudio() {
         setConfig(prev => ({ ...prev, mosaicTargetWidth: initW, mosaicTargetHeight: initH, mosaicCols: 1, mosaicRows: 1 }));
         setIsMosaicPreview(true);
       };
-    } else {
+    } else if (currentMode === 'grid' || currentMode === 'custom') {
       const newImages = Array.from(files).map(file => {
         const url = URL.createObjectURL(file);
         return {
@@ -185,7 +213,7 @@ export function usePrintStudio() {
   };
 
   const handleMouseDown = (e, img) => {
-    if (config.useMosaicMode) return;
+    if (currentMode === 'mosaic') return;
     if (e.button === 2) return;
     if (img.objectFit !== 'cover') return;
     e.preventDefault();
@@ -257,6 +285,11 @@ export function usePrintStudio() {
   const updateAllMargins = (value) => { const mm = toMm(Number(value), unit); setConfig(prev => ({ ...prev, margins: { top: mm, right: mm, bottom: mm, left: mm } })); };
   const updateCustomSize = (key, value) => { const mm = toMm(Number(value), unit); setConfig(prev => ({ ...prev, [key]: mm })); };
 
+  // Banner Helper
+  const updateBannerConfig = (key, value) => {
+    setConfig(prev => ({ ...prev, [key]: value }));
+  };
+
   return {
     unit, setUnit, images, setImages, mosaicImage, setMosaicImage, zoom, setZoom, favorites, setFavorites,
     // Exponemos el config activo y la función setConfig que ya sabe a quién actualizar
@@ -266,6 +299,7 @@ export function usePrintStudio() {
     // Exponemos allConfigs y setAllConfigs para que useAuth pueda guardarlo todo
     allConfigs, setAllConfigs,
     isMosaicPreview, setIsMosaicPreview, minMosaicDimensions,
+    isBannerPreview, setIsBannerPreview, updateBannerConfig, // Exportamos props de banner
     handleFiles, handleImageLoad, handleMouseDown, removeImage, duplicateImage, rotateImage, rotateAllImages, toggleObjectFit, fillPage,
     rotateMosaicImage, toggleMosaicFit, removeMosaicImage, updateMosaicSize, updateMargin, updateAllMargins, updateCustomSize
   };
