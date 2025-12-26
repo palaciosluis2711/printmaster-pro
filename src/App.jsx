@@ -54,13 +54,13 @@ export default function App() {
     flipH: false, flipV: false, cropShape: 'rect', keepAspectRatio: false
   });
 
-  // Nuevo estado para las páginas del banner (calculado por el canvas)
-  const [bannerTotalPages, setBannerTotalPages] = useState(0);
+  // Nuevo estado para el layout del banner (calculado por el canvas)
+  const [bannerLayout, setBannerLayout] = useState({ totalPages: 0, cols: 0, rows: 0 });
 
   // --- LOGICA DE UI AUXILIAR ---
   const totalPagesUI = useMemo(() => {
     // Si es Banner, usamos el estado reportado por el componente Canvas
-    if (activeView === 'banner') return bannerTotalPages;
+    if (activeView === 'banner') return bannerLayout.totalPages;
 
     if (studio.config.useMosaicMode) {
       if (!studio.mosaicImage) return 1;
@@ -81,7 +81,7 @@ export default function App() {
       const itemsPerPage = studio.config.cols * studio.config.rows;
       return Math.max(1, Math.ceil(studio.images.length / itemsPerPage));
     }
-  }, [studio.config, studio.images.length, studio.mosaicImage, activeView, bannerTotalPages]);
+  }, [studio.config, studio.images.length, studio.mosaicImage, activeView, bannerLayout.totalPages]);
 
   // Context Menu Handler
   const handleContextMenu = (e, imgId) => {
@@ -229,6 +229,7 @@ export default function App() {
           isBannerPreview={isBannerPreview}
           setIsBannerPreview={setIsBannerPreview}
           updateBannerConfig={updateBannerConfig}
+          bannerLayout={bannerLayout} // Passing new prop
         />
 
         {showCanvas ? (
@@ -287,7 +288,7 @@ export default function App() {
                 setZoom={studio.setZoom}
                 config={studio.config}
                 isBannerPreview={isBannerPreview}
-                onTotalPagesChange={setBannerTotalPages}
+                onTotalPagesChange={setBannerLayout}
               />
             )}
           </>

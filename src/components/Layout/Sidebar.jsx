@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
-  Grid, LayoutGrid, Ruler, Star, Settings,
-  ChevronLeft, Save, Trash2, Check, X,
-  RotateCw, Layers, Scissors, Lock, Cloud,
-  Plus, Type, Palette
+  Grid, LayoutGrid, Ruler, Star, Settings, ChevronLeft,
+  Save, Trash2, Check, X, RotateCw, Layers, Scissors,
+  Lock, Cloud, Plus, Type, Palette, Minimize, Maximize,
+  Heart, Globe, Monitor, FileType, Filter
 } from 'lucide-react';
 
 import { PAGE_SIZES, UNITS } from '../../constants/printSettings';
@@ -34,24 +34,184 @@ export default function Sidebar({
   setIsBannerPreview,
   updateBannerConfig
 }) {
+  // --- GESTIÓN DE FUENTES ---
+  const DEFAULT_FONTS = [
+    { name: 'Roboto', type: 'web' }, { name: 'Open Sans', type: 'web' },
+    { name: 'Lato', type: 'web' }, { name: 'Montserrat', type: 'web' },
+    { name: 'Oswald', type: 'web' }, { name: 'Arial', type: 'system' },
+    { name: 'Verdana', type: 'system' }, { name: 'Times New Roman', type: 'system' },
+    { name: 'Georgia', type: 'system' }, { name: 'Impact', type: 'system' },
+    { name: 'Courier New', type: 'system' }, { name: 'Pacifico', type: 'web' },
+    { name: 'Lobster', type: 'web' }, { name: 'Caveat', type: 'web' },
+    { name: 'Abril Fatface', type: 'web' }
+  ];
+
+  const [fontList, setFontList] = useState(DEFAULT_FONTS);
+  const [favFonts, setFavFonts] = useState([]);
+  const [fontFilter, setFontFilter] = useState('all'); // all, web, system, custom, favorites
+  const [googleFontName, setGoogleFontName] = useState('');
+  const [showFontInput, setShowFontInput] = useState(false);
+
+  // Load favorites from local storage
+  useEffect(() => {
+    const savedFavs = localStorage.getItem('printmaster_fav_fonts');
+    if (savedFavs) {
+      setFavFonts(JSON.parse(savedFavs));
+    }
+  }, []);
+
+  const toggleFavorite = (fontName) => {
+    const newFavs = favFonts.includes(fontName)
+      ? favFonts.filter(f => f !== fontName)
+      : [...favFonts, fontName];
+    setFavFonts(newFavs);
+    localStorage.setItem('printmaster_fav_fonts', JSON.stringify(newFavs));
+  };
+
+  // 1. Cargar desde Google Fonts
+  const addGoogleFont = () => {
+    if (!googleFontName.trim()) return;
+    const fontName = googleFontName.trim();
+
+    const link = document.createElement('link');
+    link.href = `https://fonts.googleapis.com/css2?family=${fontName.replace(/ /g, '+')}&display=swap`;
+    link.rel = 'stylesheet';
+    document.head.appendChild(link);
+
+    if (!fontList.find(f => f.name === fontName)) {
+      setFontList(prev => [{ name: fontName, type: 'web' }, ...prev]);
+    }
+    updateBannerConfig('bannerFont', fontName);
+    setGoogleFontName('');
+    setShowFontInput(false);
+  };
+
+  // 2. Cargar archivo local
+  const handleFileUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const buffer = await file.arrayBuffer();
+      const fontName = file.name.split('.')[0];
+      const font = new FontFace(fontName, buffer);
+
+      await font.load();
+      document.fonts.add(font);
+
+      if (!fontList.find(f => f.name === fontName)) {
+        setFontList(prev => [{ name: fontName, type: 'custom' }, ...prev]);
+      }
+      updateBannerConfig('bannerFont', fontName);
+    } catch (err) {
+      console.error("Error cargando fuente:", err);
+      alert("Error al cargar la fuente.");
+    }
+  };
+
+  // 3. Detectar fuentes del sistema
+  const handleSystemFonts = async () => {
+    try {
+      if (!window.queryLocalFonts) {
+        alert("Tu navegador no soporta esta función.");
+        return;
+      }
+      const available = await window.queryLocalFonts();
+      const names = [...new Set(available.map(f => f.family))];
+
+      const newSystemFonts = names.map(name => ({ name, type: 'system' }));
+
+      // Merge avoiding duplicates
+      setFontList(prev => {
+        const existingNames = new Set(prev.map(f => f.name));
+        const uniqueNew = newSystemFonts.filter(f => !existingNames.has(f.name));
+        return [...uniqueNew, ...prev];
+      });
+
+      alert(`Detectadas ${names.length} fuentes.`);
+    } catch (err) {
+      console.error("Error:", err);
+    }
+  };
+
+  // Filter Logic
+  const filteredFonts = useMemo(() => {
+    if (fontFilter === 'favorites') {
+      return fontList.filter(f => favFonts.includes(f.name));
+    }
+    if (fontFilter === 'all') return fontList;
+    return fontList.filter(f => f.type === fontFilter);
+  }, [fontList, fontFilter, favFonts]);
+
+  const [showFilterMenu, setShowFilterMenu] = useState(false);
+
+  const selectFilter = async (type) => {
+    if (type === 'system') {
+      // Si seleccionamos sistema, intentamos cargar las fuentes si no hay muchas ya cargadas
+      // O simplemente llamamos a handleSystemFonts para asegurar permisos
+      await handleSystemFonts();
+    }
+    setFontFilter(type);
+    setShowFilterMenu(false);
+  };
+
+
+
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [newFavName, setNewFavName] = useState('');
 
-  const availableFonts = [
-    'Roboto', 'Open Sans', 'Lato', 'Montserrat', 'Oswald',
-    'Arial', 'Verdana', 'Times New Roman', 'Georgia', 'Impact', 'Courier New',
-    'Pacifico', 'Lobster', 'Caveat', 'Abril Fatface'
-  ];
+  // --- CONSTANTS & DEFAULTS ---
+  const DEFAULT_BASE = {
+    pageSize: 'carta',
+    margins: { top: 10, right: 10, bottom: 10, left: 10 },
+    showGuides: true,
+    printGuides: false,
+    uniformMargins: false,
+    gap: 5,
+    cols: 2, rows: 2,
+    customWidth: 50, customHeight: 50, customMaxItems: 0,
+    mosaicCols: 1, mosaicRows: 1, mosaicTargetWidth: 200, mosaicTargetHeight: 200,
+    mosaicType: 'pieces',
+    bannerText: 'TEXTO',
+    bannerHeight: 100,
+    bannerFont: 'Arial',
+    bannerColor: '#000000',
+    isItalic: false,
+    isOutline: false,
+    bannerStrokeWidth: 1,
+    // Ensure flags are reset
+    useMosaicMode: false,
+    useCustomSize: false,
+    isBannerMode: false
+  };
 
-  // --- HANDLERS ---
+  const DEFAULTS = {
+    grid: { ...DEFAULT_BASE, useMosaicMode: false, useCustomSize: false },
+    mosaic: { ...DEFAULT_BASE, useMosaicMode: true, useCustomSize: false },
+    custom: { ...DEFAULT_BASE, useMosaicMode: false, useCustomSize: true },
+    banner: { ...DEFAULT_BASE, isBannerMode: true }
+  };
 
   const navigateTo = (view) => {
+    // If we are coming from Home, we want to RESET the mode to its defaults
+    // to avoid "pollution" from previously loaded favorites.
+    if (activeView === 'home' && DEFAULTS[view]) {
+      // Reset config for the target view
+      setConfig(prev => ({
+        ...prev,
+        ...DEFAULTS[view]
+      }));
+    } else {
+      // Normal navigation logic (e.g. from Favorites, or switching within modes if allowed)
+      // We still ensure the flags are correct just in case, though DEFAULTS handles it above for Home.
+      if (view === 'grid') setConfig(prev => ({ ...prev, useMosaicMode: false, useCustomSize: false }));
+      else if (view === 'mosaic') setConfig(prev => ({ ...prev, useMosaicMode: true }));
+      else if (view === 'custom') setConfig(prev => ({ ...prev, useMosaicMode: false, useCustomSize: true }));
+      else if (view === 'banner') setConfig(prev => ({ ...prev, isBannerMode: true }));
+    }
+
     setActiveView(view);
     setShowSaveModal(false);
-    if (view === 'grid') setConfig(prev => ({ ...prev, useMosaicMode: false, useCustomSize: false }));
-    else if (view === 'mosaic') setConfig(prev => ({ ...prev, useMosaicMode: true }));
-    else if (view === 'custom') setConfig(prev => ({ ...prev, useMosaicMode: false, useCustomSize: true }));
-    else if (view === 'banner') setConfig(prev => ({ ...prev, isBannerMode: true }));
   };
 
   const rotateAllImages = () => {
@@ -331,91 +491,209 @@ export default function Sidebar({
         />
         <label htmlFor="mosaicGuides" className="text-xs font-medium text-purple-700 cursor-pointer select-none">
           Imprimir guías de margen
+
         </label>
       </div>
     </div>
   );
 
-  const renderBannerMode = () => (
-    <div className="space-y-6 animate-in slide-in-from-right-4 fade-in duration-300">
-      <SaveSection />
-      <PaperSettings config={config} setConfig={setConfig} />
-      <MarginSettings config={config} setConfig={setConfig} unit={unit} />
-      <div className="bg-pink-50 p-3 rounded-lg border border-pink-100 space-y-4">
-        <div>
-          <label className="text-[10px] font-bold text-pink-800 block mb-1">Tu Frase</label>
-          <textarea value={config.bannerText} onChange={(e) => updateBannerConfig('bannerText', e.target.value)} className="w-full border border-pink-200 rounded p-2 text-sm focus:ring-pink-500 resize-none h-20" placeholder="Escribe aquí..." disabled={!isBannerPreview} />
-        </div>
-        <div>
-          <label className="text-[10px] font-bold text-pink-800 block mb-1">Tipografía</label>
-          <select value={config.bannerFont} onChange={handleBannerFontChange} className="w-full border border-pink-200 rounded p-1.5 text-sm" disabled={!isBannerPreview}>
-            {availableFonts.map(font => (<option key={font} value={font} style={{ fontFamily: font }}>{font}</option>))}
-          </select>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
+  const [showAddMenu, setShowAddMenu] = useState(false);
+  const fileInputRef = React.useRef(null);
+
+  const triggerFileUpload = () => {
+    fileInputRef.current?.click();
+    setShowAddMenu(false);
+  };
+
+  const renderBannerMode = () => {
+    // Calcular Tamaño Final
+    const pageSize = PAGE_SIZES[config.pageSize];
+    // bannerLayout is not defined in the provided context, assuming it's a prop or derived elsewhere.
+    const bannerLayout = null; // Placeholder, replace with actual derivation if available
+    const finalWidth = bannerLayout ? (pageSize.width * bannerLayout.cols) : 0;
+    const finalHeight = bannerLayout ? (pageSize.height * bannerLayout.rows) : 0;
+    const finalSizeStr = `${convert(finalWidth, unit)} x ${convert(finalHeight, unit)}`;
+
+    return (
+      <div className="space-y-6 animate-in slide-in-from-right-4 fade-in duration-300">
+        <SaveSection />
+        <PaperSettings config={config} setConfig={setConfig} />
+        <MarginSettings config={config} setConfig={setConfig} unit={unit} />
+
+        <div className="bg-pink-50 p-3 rounded-lg border border-pink-100 space-y-4">
           <div>
-            <label className="text-[10px] font-bold text-pink-800 block mb-1">Altura Letra ({UNITS[unit].label})</label>
-            <InputNumber valueMm={config.bannerHeight} unit={unit} step={UNITS[unit].step} min={10} onChange={(val) => updateBannerConfig('bannerHeight', toMm(val, unit))} className="w-full border border-pink-200 rounded p-1.5 text-sm" disabled={!isBannerPreview} />
+            <label className="text-[10px] font-bold text-pink-800 block mb-1">Tu Frase</label>
+            <textarea value={config.bannerText} onChange={(e) => updateBannerConfig('bannerText', e.target.value)} className="w-full border border-pink-200 rounded p-2 text-sm focus:ring-pink-500 resize-none h-20" placeholder="Escribe aquí..." disabled={!isBannerPreview} />
           </div>
+
+          {/* SECCIÓN DE FUENTES MEJORADA */}
           <div>
-            <label className="text-[10px] font-bold text-pink-800 block mb-1">Color</label>
-            <div className="flex items-center gap-2">
-              <input type="color" value={config.bannerColor} onChange={(e) => updateBannerConfig('bannerColor', e.target.value)} className="w-8 h-8 rounded cursor-pointer border border-pink-200 p-0 overflow-hidden" disabled={!isBannerPreview} />
-              <span className="text-xs text-pink-600 font-mono">{config.bannerColor}</span>
+            <div className="flex justify-between items-end mb-1 relative">
+              <label className="text-[10px] font-bold text-pink-800">Tipografía ({filteredFonts.length})</label>
+
+              <div className="flex gap-1">
+                {/* Botón Añadir Fuente */}
+                <div className="relative">
+                  <button
+                    onClick={() => setShowAddMenu(!showAddMenu)}
+                    className={`p-1 rounded transition-colors ${showAddMenu ? 'bg-pink-200 text-pink-800' : 'hover:bg-pink-100 text-pink-400'}`}
+                    title="Añadir fuentes"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                  </button>
+                  {showAddMenu && (
+                    <div className="absolute right-0 top-full mt-1 bg-white rounded-lg shadow-xl border border-slate-100 p-1 z-50 w-36 animate-in fade-in zoom-in-95 duration-200">
+                      <div className="text-[9px] font-bold text-slate-400 px-2 py-1 uppercase tracking-wider">Añadir desde:</div>
+                      <button onClick={() => { setShowFontInput(true); setShowAddMenu(false); }} className="w-full text-left px-2 py-1.5 text-xs rounded flex items-center gap-2 text-slate-600 hover:bg-slate-50 transition-colors">
+                        <Globe className="w-3 h-3 text-blue-400" /> Google Fonts
+                      </button>
+                      <button onClick={triggerFileUpload} className="w-full text-left px-2 py-1.5 text-xs rounded flex items-center gap-2 text-slate-600 hover:bg-slate-50 transition-colors">
+                        <FileType className="w-3 h-3 text-amber-500" /> Archivo Local
+                      </button>
+                      <button onClick={() => { handleSystemFonts(); setShowAddMenu(false); }} className="w-full text-left px-2 py-1.5 text-xs rounded flex items-center gap-2 text-slate-600 hover:bg-slate-50 transition-colors">
+                        <Monitor className="w-3 h-3 text-slate-500" /> Detectar Sistema
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Botón Filtro */}
+                <div className="relative">
+                  <button
+                    onClick={() => setShowFilterMenu(!showFilterMenu)}
+                    className={`p-1 rounded transition-colors ${fontFilter !== 'all' ? 'bg-pink-200 text-pink-800' : 'hover:bg-pink-100 text-pink-400'}`}
+                    title="Filtrar fuentes"
+                  >
+                    <Filter className="w-3.5 h-3.5" />
+                  </button>
+                  {showFilterMenu && (
+                    <div className="absolute right-0 top-full mt-1 bg-white rounded-lg shadow-xl border border-slate-100 p-1 z-50 w-32 animate-in fade-in zoom-in-95 duration-200">
+                      <div className="text-[9px] font-bold text-slate-400 px-2 py-1 uppercase tracking-wider">Mostrar:</div>
+                      {[
+                        { id: 'all', label: 'Todas', icon: Layers },
+                        { id: 'web', label: 'Web', icon: Globe },
+                        { id: 'system', label: 'Sistema', icon: Monitor },
+                        { id: 'custom', label: 'Archivos', icon: FileType },
+                        { id: 'favorites', label: 'Favoritas', icon: Heart }
+                      ].map(opt => (
+                        <button
+                          key={opt.id}
+                          onClick={() => selectFilter(opt.id)}
+                          className={`w-full text-left px-2 py-1.5 text-xs rounded flex items-center gap-2 transition-colors ${fontFilter === opt.id ? 'bg-pink-50 text-pink-700 font-bold' : 'text-slate-600 hover:bg-slate-50'}`}
+                        >
+                          <opt.icon className={`w-3 h-3 ${opt.id === 'favorites' && fontFilter === 'favorites' ? 'fill-pink-600' : ''}`} />
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-2 mb-2">
+              <select value={config.bannerFont} onChange={handleBannerFontChange} className="flex-1 border border-pink-200 rounded p-1.5 text-sm" disabled={!isBannerPreview}>
+                {filteredFonts.map((font, idx) => (
+                  <option key={idx} value={font.name} style={{ fontFamily: font.name }}>{font.name}</option>
+                ))}
+                {filteredFonts.length === 0 && <option disabled>Sin resultados</option>}
+              </select>
+              <button
+                onClick={() => toggleFavorite(config.bannerFont || 'Arial')}
+                className={`p-1.5 border border-pink-200 rounded transition-colors ${favFonts.includes(config.bannerFont || 'Arial') ? 'bg-pink-50 text-pink-600 border-pink-300' : 'bg-white text-slate-300 hover:text-pink-400'}`}
+                title="Marcar como favorita"
+              >
+                <Heart className={`w-4 h-4 ${favFonts.includes(config.bannerFont || 'Arial') ? 'fill-pink-600' : ''}`} />
+              </button>
+            </div>
+
+            <input type="file" accept=".ttf,.otf,.woff,.woff2" className="hidden" ref={fileInputRef} onChange={handleFileUpload} />
+
+            {/* Input para Google Fonts */}
+            {showFontInput && (
+              <div className="mt-2 flex gap-1 animate-in fade-in slide-in-from-top-1">
+                <input
+                  type="text"
+                  placeholder="Ej: Roboto Slab"
+                  className="flex-1 text-xs border border-pink-300 p-1 rounded"
+                  value={googleFontName}
+                  onChange={(e) => setGoogleFontName(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && addGoogleFont()}
+                  autoFocus
+                />
+                <button onClick={addGoogleFont} className="bg-pink-500 text-white px-2 rounded text-xs">OK</button>
+                <button onClick={() => setShowFontInput(false)} className="text-slate-400 hover:text-red-500 px-1"><X className="w-3 h-3" /></button>
+              </div>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-[10px] font-bold text-pink-800 block mb-1">Altura Letra ({UNITS[unit].label})</label>
+              <InputNumber valueMm={config.bannerHeight} unit={unit} step={UNITS[unit].step} min={10} onChange={(val) => updateBannerConfig('bannerHeight', toMm(val, unit))} className="w-full border border-pink-200 rounded p-1.5 text-sm" disabled={!isBannerPreview} />
+            </div>
+            <div>
+              <label className="text-[10px] font-bold text-pink-800 block mb-1">Color</label>
+              <div className="flex items-center gap-2">
+                <input type="color" value={config.bannerColor} onChange={(e) => updateBannerConfig('bannerColor', e.target.value)} className="w-8 h-8 rounded cursor-pointer border border-pink-200 p-0 overflow-hidden" disabled={!isBannerPreview} />
+                <span className="text-xs text-pink-600 font-mono">{config.bannerColor}</span>
+              </div>
             </div>
           </div>
-        </div>
-        <div className="flex gap-2">
-          {/* Independent Outline Toggle */}
-          <button
-            onClick={() => updateBannerConfig('isOutline', !config.isOutline)}
-            className={`flex-1 py-1.5 text-xs font-bold rounded border transition-colors ${config.isOutline ? 'bg-pink-200 border-pink-300 text-pink-800' : 'bg-white border-pink-200 text-pink-400'}`}
-            disabled={!isBannerPreview}
-          >
-            Solo Contorno
-          </button>
-
-          {/* Independent Italic Toggle */}
-          <button
-            onClick={() => updateBannerConfig('isItalic', !config.isItalic)}
-            className={`flex-1 py-1.5 text-xs font-bold rounded border transition-colors ${config.isItalic ? 'bg-pink-200 border-pink-300 text-pink-800' : 'bg-white border-pink-200 text-pink-400'}`}
-            disabled={!isBannerPreview}
-          >
-            Italic (K)
-          </button>
-        </div>
-
-        {/* Conditional Stroke Width Control */}
-        {config.isOutline && (
-          <div className="animate-in slide-in-from-top-2 fade-in duration-200">
-            <label className="text-[10px] font-bold text-pink-800 block mb-1">Grosor de Contorno ({config.bannerStrokeWidth}px)</label>
-            <input
-              type="range"
-              min="1"
-              max="10"
-              step="0.5"
-              value={config.bannerStrokeWidth || 1}
-              onChange={(e) => updateBannerConfig('bannerStrokeWidth', Number(e.target.value))}
-              className="w-full h-2 bg-pink-200 rounded-lg appearance-none cursor-pointer accent-pink-600"
+          <div className="flex gap-2">
+            {/* Independent Outline Toggle */}
+            <button
+              onClick={() => updateBannerConfig('isOutline', !config.isOutline)}
+              className={`flex-1 py-1.5 text-xs font-bold rounded border transition-colors ${config.isOutline ? 'bg-pink-200 border-pink-300 text-pink-800' : 'bg-white border-pink-200 text-pink-400'}`}
               disabled={!isBannerPreview}
-            />
+            >
+              Solo Contorno
+            </button>
+
+            {/* Independent Italic Toggle */}
+            <button
+              onClick={() => updateBannerConfig('isItalic', !config.isItalic)}
+              className={`flex-1 py-1.5 text-xs font-bold rounded border transition-colors ${config.isItalic ? 'bg-pink-200 border-pink-300 text-pink-800' : 'bg-white border-pink-200 text-pink-400'}`}
+              disabled={!isBannerPreview}
+            >
+              Italic (K)
+            </button>
           </div>
-        )}
-        <div className="pt-3 border-t border-pink-100 mt-3">
-          {isBannerPreview ? (
-            <button onClick={() => setIsBannerPreview(false)} className="w-full bg-pink-600 text-white text-xs font-bold py-2.5 rounded shadow-sm hover:bg-pink-700 transition flex items-center justify-center gap-2">
-              <Scissors className="w-4 h-4" /> Procesar {totalPages} Páginas
-            </button>
-          ) : (
-            <button onClick={() => setIsBannerPreview(true)} className="w-full bg-white text-pink-700 border border-pink-200 text-xs font-bold py-2.5 rounded shadow-sm hover:bg-pink-50 transition flex items-center justify-center gap-2">
-              <Layers className="w-4 h-4" /> Ajustar Texto
-            </button>
+
+
+
+          {/* Conditional Stroke Width Control */}
+          {config.isOutline && (
+            <div className="animate-in slide-in-from-top-2 fade-in duration-200">
+              <label className="text-[10px] font-bold text-pink-800 block mb-1">Grosor de Contorno ({config.bannerStrokeWidth}px)</label>
+              <input
+                type="range"
+                min="1"
+                max="10"
+                step="0.5"
+                value={config.bannerStrokeWidth || 1}
+                onChange={(e) => updateBannerConfig('bannerStrokeWidth', Number(e.target.value))}
+                className="w-full h-2 bg-pink-200 rounded-lg appearance-none cursor-pointer accent-pink-600"
+                disabled={!isBannerPreview}
+              />
+            </div>
           )}
+          <div className="pt-3 border-t border-pink-100 mt-3">
+            {isBannerPreview ? (
+              <button onClick={() => setIsBannerPreview(false)} className="w-full bg-pink-600 text-white text-xs font-bold py-2.5 rounded shadow-sm hover:bg-pink-700 transition flex items-center justify-center gap-2">
+                <Scissors className="w-4 h-4" /> Procesar {totalPages} Páginas
+              </button>
+            ) : (
+              <button onClick={() => setIsBannerPreview(true)} className="w-full bg-white text-pink-700 border border-pink-200 text-xs font-bold py-2.5 rounded shadow-sm hover:bg-pink-50 transition flex items-center justify-center gap-2">
+                <Layers className="w-4 h-4" /> Ajustar Texto
+              </button>
+            )}
+          </div>
         </div>
-      </div>
-      <div className="flex items-center gap-2 mt-auto pt-4 border-t border-slate-100"><input type="checkbox" id="bannerGuides" checked={config.printGuides} onChange={(e) => setConfig({ ...config, printGuides: e.target.checked })} className="rounded text-pink-600 focus:ring-pink-500" /><label htmlFor="bannerGuides" className="text-xs font-medium text-pink-700 cursor-pointer select-none">Imprimir guías de corte</label></div>
-    </div>
-  );
+        <div className="flex items-center gap-2 mt-auto pt-4 border-t border-slate-100"><input type="checkbox" id="bannerGuides" checked={config.printGuides} onChange={(e) => setConfig({ ...config, printGuides: e.target.checked })} className="rounded text-pink-600 focus:ring-pink-500" /><label htmlFor="bannerGuides" className="text-xs font-medium text-pink-700 cursor-pointer select-none">Imprimir guías de corte</label></div>
+      </div >
+    );
+  };
 
   const renderFavoritesMode = () => (
     <div className="space-y-4 animate-in slide-in-from-right-4 fade-in duration-300">

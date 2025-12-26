@@ -40,23 +40,54 @@ export default function BannerModeCanvas({
         const fontStyle = `${config.isItalic ? 'italic ' : ''}`;
         const fontString = `${fontStyle}${fontSizePx}px "${config.bannerFont || 'Arial'}", sans-serif`;
 
-        // 3. Medir el texto para obtener el ancho total
+        // 3. Medir el texto y calcular layout
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
         ctx.font = fontString;
-        const metrics = ctx.measureText(config.bannerText || 'Texto');
-        const actualHeight = metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent;
 
-        const bannerTotalWidthPx = metrics.width;
-        // Adjust width slightly if outline is thick to prevent clipping?
-        // simple approach: standard measurement. 
+        // Variables para el resultado
+        let bannerTotalWidthPx = 0;
+        let charPositions = []; // Solo usado si avoidCuts es true
 
-        const bannerTotalHeightPx = actualHeight;
-        const fullLineHeightPx = fontSizePx;
-
-        // Convertir contentWidth/Height a px para calculo de paginas
+        // Convertir contentWidth a px
         const contentWidthPx = mmToPx(contentWidth);
         const contentHeightPx = mmToPx(contentHeight);
+
+        if (config.avoidCuts) {
+            // Lógica Smart Spacing (Letra por letra)
+            const chars = (config.bannerText || 'Texto').split('');
+            let currentX = 0;
+
+            chars.forEach(char => {
+                const metrics = ctx.measureText(char);
+                const charW = metrics.width;
+
+                // Chequear si la letra actual cruza un corte vertical
+                // El corte ocurre en múltiplos de contentWidthPx
+                const startPage = Math.floor(currentX / contentWidthPx);
+                const endPage = Math.floor((currentX + charW - 0.1) / contentWidthPx); // -0.1 para tolerancia
+
+                if (startPage !== endPage && charW <= contentWidthPx) {
+                    // Si cruza página y la letra CABE en una página, saltamos a la siguiente
+                    currentX = (startPage + 1) * contentWidthPx;
+                }
+
+                charPositions.push({ char, x: currentX });
+                currentX += charW;
+            });
+
+            bannerTotalWidthPx = currentX;
+        } else {
+            // Lógica Normal (Texto completo)
+            const metrics = ctx.measureText(config.bannerText || 'Texto');
+            bannerTotalWidthPx = metrics.width;
+        }
+
+        // Altura es constante
+        const metricsFull = ctx.measureText(config.bannerText || 'Texto'); // Para altura usamos referencia general
+        const actualHeight = metricsFull.actualBoundingBoxAscent + metricsFull.actualBoundingBoxDescent;
+        const bannerTotalHeightPx = actualHeight;
+        const fullLineHeightPx = fontSizePx;
 
         // Número de hojas necesarias
         const colsP = Math.max(1, Math.ceil(bannerTotalWidthPx / contentWidthPx));
@@ -95,16 +126,21 @@ export default function BannerModeCanvas({
             centeringX, centeringY, // Export centering values
             fitScale,
             fontString,
-            fontSizePx
+            fontSizePx,
+            charPositions // Exportar posiciones individuales
         };
     }, [config, windowSize]);
 
-    // 4. Report totalPages to parent if needed
+    // 4. Report totalPages and layout to parent
     useEffect(() => {
         if (onTotalPagesChange) {
-            onTotalPagesChange(layout.totalPages);
+            onTotalPagesChange({
+                totalPages: layout.totalPages,
+                cols: layout.colsP,
+                rows: layout.rowsP
+            });
         }
-    }, [layout.totalPages, onTotalPagesChange]);
+    }, [layout.totalPages, layout.colsP, layout.rowsP, onTotalPagesChange]);
 
     // Helper for outline styles
     const getTextStyle = () => {
@@ -178,7 +214,7 @@ export default function BannerModeCanvas({
 
                         <div className="mt-6 bg-slate-800 text-white px-5 py-2.5 rounded-full shadow-xl text-xs font-bold flex items-center gap-3 z-20 sticky bottom-4 backdrop-blur-md bg-slate-800/90 border border-slate-600">
                             <span>
-                                Tamaño: <span className="text-purple-300 text-sm">{Math.round(convert(layout.bannerTotalWidthPx, 'px', 'mm'))} x {Math.round(convert(layout.fullLineHeightPx, 'px', 'mm'))} mm</span>
+                                Tamaño: <span className="text-purple-300 text-sm">{Math.round(layout.colsP * layout.pageWidthMm)} x {Math.round(layout.rowsP * layout.pageHeightMm)} mm</span>
                             </span>
                             <span className="w-px h-4 bg-slate-600 mx-1"></span>
                             <span><span className="text-purple-300">{layout.colsP} x {layout.rowsP}</span> Hojas</span>
