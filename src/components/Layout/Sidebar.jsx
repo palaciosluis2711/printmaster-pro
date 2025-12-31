@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import {
-  Grid, LayoutGrid, Ruler, Star, Settings, ChevronLeft, ArrowRight,
+  Grid, LayoutGrid, Ruler, Star, Settings, ChevronLeft, ArrowRight, ChevronRight,
   Save, Trash2, Check, X, RotateCw, Layers, Scissors,
   Lock, Cloud, Plus, Type, Palette, Minimize, Maximize,
   Heart, Globe, Monitor, FileType, Filter, User,
