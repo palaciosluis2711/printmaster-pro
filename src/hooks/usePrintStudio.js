@@ -3,7 +3,8 @@ import { toMm, mmToPx } from '../utils/measurements';
 import { PAGE_SIZES } from '../constants/printSettings';
 
 // Claves para LocalStorage
-const STORAGE_KEY_ALL_CONFIGS = 'printmaster_all_configs_v3'; // Nueva versión de clave
+// Claves para LocalStorage
+const STORAGE_KEY_ALL_CONFIGS = 'printmaster_all_configs_v4'; // Nueva versión de clave
 const STORAGE_KEY_UNIT = 'printmaster_unit_v2';
 const STORAGE_KEY_FAVS = 'printmaster_favs_v2';
 const STORAGE_KEY_VIEW = 'printmaster_active_view_v2';
@@ -57,7 +58,25 @@ export function usePrintStudio() {
       grid: { ...baseDefaults, useMosaicMode: false, useCustomSize: false },
       mosaic: { ...baseDefaults, useMosaicMode: true, useCustomSize: false },
       custom: { ...baseDefaults, useMosaicMode: false, useCustomSize: true },
-      banner: { ...baseDefaults, isBannerMode: true }
+      banner: { ...baseDefaults, isBannerMode: true },
+      cv: {
+        ...baseDefaults,
+        isCVMode: true,
+        step: 0,
+        cvPageSize: 'carta', // Default to Carta, distinct from main pageSize if needed, or just use pageSize. Let's use pageSize for consistency but ensure we set it.
+        cvColor: '#3b82f6', // Blue default
+        personalData: {
+          firstName: '', secondName: '', firstSurname: '', secondSurname: '',
+          sex: 'Masculino', dob: '', age: '', manualAge: false,
+          dui: '', nit: '', showNit: true,
+          civilStatus: 'Soltero', showCivilStatus: true,
+          isss: '', isssNA: false,
+          afp: '', afpNA: false,
+          phones: [{ id: Date.now(), number: '', type: 'mobile', hasWhatsapp: true }],
+          email: '', emailNA: false,
+          others: []
+        }
+      }
     };
 
     if (typeof window !== 'undefined') {
@@ -70,7 +89,8 @@ export function usePrintStudio() {
             grid: { ...defaults.grid, ...(parsed.grid || {}) },
             mosaic: { ...defaults.mosaic, ...(parsed.mosaic || {}) },
             custom: { ...defaults.custom, ...(parsed.custom || {}) },
-            banner: { ...defaults.banner, ...(parsed.banner || {}) }
+            banner: { ...defaults.banner, ...(parsed.banner || {}) },
+            cv: { ...defaults.cv, ...(parsed.cv || {}) }
           };
         } catch (e) { console.error("Error loading configs:", e); }
       }
@@ -91,7 +111,7 @@ export function usePrintStudio() {
   // Determinamos qué config usar basándonos en la vista actual
   // Si estamos en 'home', 'settings' o 'favorites', usamos 'grid' por defecto para evitar errores,
   // pero la UI no mostrará los controles de todas formas.
-  const currentMode = ['grid', 'mosaic', 'custom', 'banner'].includes(activeView) ? activeView : 'grid';
+  const currentMode = ['grid', 'mosaic', 'custom', 'banner', 'cv'].includes(activeView) ? activeView : 'grid';
 
   const config = allConfigs[currentMode];
 
@@ -114,11 +134,44 @@ export function usePrintStudio() {
   const [favorites, setFavorites] = useState(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem(STORAGE_KEY_FAVS);
-      if (saved) { try { return JSON.parse(saved); } catch (e) { } }
+      if (saved) { try { return JSON.parse(saved); } catch { /* ignore */ } }
     }
     return [];
   });
+
   useEffect(() => { localStorage.setItem(STORAGE_KEY_FAVS, JSON.stringify(favorites)); }, [favorites]);
+
+  // --- CV DRAFTS (BORRADORES) ---
+  const STORAGE_KEY_CV_DRAFTS = 'printmaster_cv_drafts_v1';
+  const [cvDrafts, setCVDrafts] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem(STORAGE_KEY_CV_DRAFTS);
+      if (saved) { try { return JSON.parse(saved); } catch { /* ignore */ } }
+    }
+    return [];
+  });
+
+  useEffect(() => { localStorage.setItem(STORAGE_KEY_CV_DRAFTS, JSON.stringify(cvDrafts)); }, [cvDrafts]);
+
+  const saveCVDraft = (name, cvConfig) => {
+    const draft = {
+      id: Date.now().toString(36) + Math.random().toString(36).substring(2),
+      name: name || `Borrador ${new Date().toLocaleDateString()}`,
+      date: new Date().toISOString(),
+      config: cvConfig
+    };
+    setCVDrafts(prev => [draft, ...prev]);
+  };
+
+  const deleteCVDraft = (id) => {
+    setCVDrafts(prev => prev.filter(d => d.id !== id));
+  };
+
+  const updateCVDraft = (id, newConfig) => {
+    setCVDrafts(prev => prev.map(d => d.id === id ? { ...d, config: newConfig, date: new Date().toISOString() } : d));
+  };
+
+
 
 
   // --- ESTADOS DE SESIÓN (No persistentes y ISOLATED) ---
@@ -300,6 +353,7 @@ export function usePrintStudio() {
     allConfigs, setAllConfigs,
     isMosaicPreview, setIsMosaicPreview, minMosaicDimensions,
     isBannerPreview, setIsBannerPreview, updateBannerConfig, // Exportamos props de banner
+    cvDrafts, saveCVDraft, deleteCVDraft, updateCVDraft, // Exportamos props de CV Drafts
     handleFiles, handleImageLoad, handleMouseDown, removeImage, duplicateImage, rotateImage, rotateAllImages, toggleObjectFit, fillPage,
     rotateMosaicImage, toggleMosaicFit, removeMosaicImage, updateMosaicSize, updateMargin, updateAllMargins, updateCustomSize
   };

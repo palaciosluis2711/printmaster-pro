@@ -13,6 +13,7 @@ import StandardGridCanvas from './components/Canvas/StandardGridCanvas';
 import CustomGridCanvas from './components/Canvas/CustomGridCanvas';
 import MosaicModeCanvas from './components/Canvas/MosaicModeCanvas';
 import BannerModeCanvas from './components/Canvas/BannerModeCanvas';
+import CVModeCanvas from './components/Canvas/CVModeCanvas';
 import EditModal from './components/Modals/EditModal';
 import SettingsModal from './components/Modals/SettingsModal';
 import ContextMenu from './components/Modals/ContextMenu';
@@ -181,7 +182,7 @@ export default function App() {
     else setActiveView('grid');
   };
 
-  const showCanvas = ['grid', 'mosaic', 'custom', 'banner'].includes(activeView);
+  const showCanvas = ['grid', 'mosaic', 'custom', 'banner', 'cv'].includes(activeView);
   const recentFavorites = [...studio.favorites].reverse().slice(0, 3);
 
   return (
@@ -229,7 +230,11 @@ export default function App() {
           isBannerPreview={isBannerPreview}
           setIsBannerPreview={setIsBannerPreview}
           updateBannerConfig={updateBannerConfig}
-          bannerLayout={bannerLayout} // Passing new prop
+          bannerLayout={bannerLayout}
+          // CV Props
+          cvDrafts={studio.cvDrafts}
+          saveCVDraft={studio.saveCVDraft}
+          deleteCVDraft={studio.deleteCVDraft}
         />
 
         {showCanvas ? (
@@ -280,6 +285,12 @@ export default function App() {
                 onRotateMosaic={studio.rotateMosaicImage}
                 onToggleMosaicFit={studio.toggleMosaicFit}
                 onRemoveMosaic={studio.removeMosaicImage}
+              />
+            )}
+            {activeView === 'cv' && (
+              <CVModeCanvas
+                config={studio.config}
+                zoom={studio.zoom}
               />
             )}
             {activeView === 'banner' && (

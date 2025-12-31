@@ -1,9 +1,10 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import {
-  Grid, LayoutGrid, Ruler, Star, Settings, ChevronLeft,
+  Grid, LayoutGrid, Ruler, Star, Settings, ChevronLeft, ArrowRight,
   Save, Trash2, Check, X, RotateCw, Layers, Scissors,
   Lock, Cloud, Plus, Type, Palette, Minimize, Maximize,
-  Heart, Globe, Monitor, FileType, Filter
+  Heart, Globe, Monitor, FileType, Filter, User,
+  FileText, Clock
 } from 'lucide-react';
 
 import { PAGE_SIZES, UNITS } from '../../constants/printSettings';
@@ -22,7 +23,7 @@ export default function Sidebar({
   mosaicImage,
   setImages,
   setMosaicImage,
-  user,
+
   totalPages,
   isMosaicPreview,
   setIsMosaicPreview,
@@ -32,7 +33,9 @@ export default function Sidebar({
   // Props Banner
   isBannerPreview,
   setIsBannerPreview,
-  updateBannerConfig
+  updateBannerConfig,
+  // CV Props
+  cvDrafts, saveCVDraft, deleteCVDraft
 }) {
   // --- GESTIÓN DE FUENTES ---
   const DEFAULT_FONTS = [
@@ -160,7 +163,31 @@ export default function Sidebar({
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [newFavName, setNewFavName] = useState('');
 
-  // --- CONSTANTS & DEFAULTS ---
+  // --- COMPONENTE INTERNO: PANEL DE GUARDADO ---
+  const SaveSection = () => (
+    showSaveModal ? (
+      <div className="mb-4 bg-amber-50 border border-amber-200 p-3 rounded-lg animate-in slide-in-from-top-2 fade-in">
+        <label className="text-[10px] font-bold text-amber-700 uppercase mb-1 block">Guardar Configuración</label>
+        <div className="flex gap-2">
+          <input
+            autoFocus
+            type="text"
+            placeholder="Nombre..."
+            className="flex-1 text-xs border border-amber-300 p-1.5 rounded focus:outline-none focus:border-amber-500"
+            value={newFavName}
+            onChange={e => setNewFavName(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && saveConfiguration()}
+          />
+          <button onClick={saveConfiguration} className="bg-amber-500 text-white px-2 rounded hover:bg-amber-600"><Check className="w-4 h-4" /></button>
+          <button onClick={() => setShowSaveModal(false)} className="bg-white text-amber-700 border border-amber-200 px-2 rounded hover:bg-amber-50"><X className="w-4 h-4" /></button>
+        </div>
+      </div>
+    ) : null
+  );
+
+  // --- COMPONENT CONSTANTS MOVED OUTSIDE/MEMOIZED ---
+  // To avoid lint purity errors, we define these outside or memoize.
+  // Since they are static defaults, we can just define them inside but use static ID for phone.
   const DEFAULT_BASE = {
     pageSize: 'carta',
     margins: { top: 10, right: 10, bottom: 10, left: 10 },
@@ -182,36 +209,126 @@ export default function Sidebar({
     // Ensure flags are reset
     useMosaicMode: false,
     useCustomSize: false,
-    isBannerMode: false
+    isBannerMode: false,
+    isCVMode: false,
+    personalData: {
+      firstName: '', secondName: '', firstSurname: '', secondSurname: '',
+      sex: 'Masculino', dob: '', age: '', manualAge: false,
+      dui: '', nit: '', showNit: true,
+      civilStatus: 'Soltero', showCivilStatus: true,
+      isss: '', isssNA: false,
+      afp: '', afpNA: false,
+      phones: [{ id: 1, number: '', type: 'mobile', hasWhatsapp: true }],
+      email: '', emailNA: false,
+      others: []
+    }
   };
 
   const DEFAULTS = {
     grid: { ...DEFAULT_BASE, useMosaicMode: false, useCustomSize: false },
     mosaic: { ...DEFAULT_BASE, useMosaicMode: true, useCustomSize: false },
     custom: { ...DEFAULT_BASE, useMosaicMode: false, useCustomSize: true },
-    banner: { ...DEFAULT_BASE, isBannerMode: true }
+    banner: { ...DEFAULT_BASE, isBannerMode: true },
+    cv: { ...DEFAULT_BASE, isCVMode: true, step: 0, cvPageSize: 'carta' }
   };
 
-  const navigateTo = (view) => {
-    // If we are coming from Home, we want to RESET the mode to its defaults
-    // to avoid "pollution" from previously loaded favorites.
+
+  const [showExitPrompt, setShowExitPrompt] = useState(false);
+  const [pendingView, setPendingView] = useState(null);
+  const [draftName, setDraftName] = useState('');
+
+  // --- EXIT CONFIRMATION MODAL ---
+  const renderExitConfirmationModal = () => (
+    showExitPrompt ? (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 animate-in fade-in duration-200">
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden scale-in-95 animate-in zoom-in-95 duration-200">
+          <div className="bg-blue-600 p-4 text-white">
+            <h3 className="font-bold text-lg flex items-center gap-2">
+              <Save className="w-5 h-5" /> Guardar Borrador
+            </h3>
+          </div>
+          <div className="p-6">
+            <p className="text-sm text-slate-600 mb-4">
+              Estás a punto de salir. ¿Deseas guardar tu progreso en un borrador para continuar después?
+            </p>
+            <div className="mb-4">
+              <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Nombre del Borrador</label>
+              <input
+                type="text"
+                value={draftName}
+                onChange={(e) => setDraftName(e.target.value)}
+                className="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                placeholder="Ej: Mi CV 2024..."
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={() => {
+                  try {
+                    saveCVDraft(draftName, config);
+                  } catch (e) {
+                    console.error("Save failed", e);
+                  }
+                  performNavigation(pendingView);
+                }}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-xl transition-colors flex items-center justify-center gap-2"
+              >
+                <Save className="w-4 h-4" /> Guardar y Salir
+              </button>
+              <button
+                onClick={() => performNavigation(pendingView)}
+                className="w-full bg-white border-2 border-slate-200 hover:border-slate-300 text-slate-600 font-bold py-2.5 rounded-xl transition-colors"
+              >
+                Salir sin guardar
+              </button>
+              <button
+                onClick={() => { setShowExitPrompt(false); setPendingView(null); }}
+                className="w-full text-slate-400 hover:text-slate-600 text-xs font-medium py-2 rounded-lg transition-colors"
+              >
+                Cancelar (Quedarse)
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    ) : null
+  );
+
+  const performNavigation = (view) => {
+    // Helper to actually execute navigation
     if (activeView === 'home' && DEFAULTS[view]) {
-      // Reset config for the target view
-      setConfig(prev => ({
-        ...prev,
-        ...DEFAULTS[view]
-      }));
+      // Reset on entry if coming from home, EXCEPT if we are entering 'cv' mode intentionally via "Borradores" load (which handles its own config setting).
+      // But if entering via clicking the main menu button, we want default state.
+      // The main menu buttons call this.
+
+      // For CV, we default to Step 0 (Menu). Ideally we don't reset "all" if we want to keep some persistent settings?
+      // User requirement: "Cada vez que se entre a 'Crear nuevo CV' los campos estarán vacios".
+      // This implies when entering the MODE itself or the SUB-feature?
+      // The "Crear Curriculum" MAIN MENU button leads here.
+      setConfig(prev => ({ ...prev, ...DEFAULTS[view] }));
     } else {
-      // Normal navigation logic (e.g. from Favorites, or switching within modes if allowed)
-      // We still ensure the flags are correct just in case, though DEFAULTS handles it above for Home.
+      // Switching modes directly
       if (view === 'grid') setConfig(prev => ({ ...prev, useMosaicMode: false, useCustomSize: false }));
       else if (view === 'mosaic') setConfig(prev => ({ ...prev, useMosaicMode: true }));
       else if (view === 'custom') setConfig(prev => ({ ...prev, useMosaicMode: false, useCustomSize: true }));
       else if (view === 'banner') setConfig(prev => ({ ...prev, isBannerMode: true }));
+      else if (view === 'cv') setConfig(prev => ({ ...prev, isCVMode: true, step: 0, cvPageSize: 'carta' }));
     }
-
     setActiveView(view);
     setShowSaveModal(false);
+    setShowExitPrompt(false);
+    setPendingView(null);
+  };
+
+  const navigateTo = (view) => {
+    // INTERCEPT EXIT FROM CV MODE
+    if (activeView === 'cv' && view !== 'cv' && (config.personalData?.firstName || config.personalData?.phones?.length > 1)) {
+      setDraftName(`${config.personalData.firstName || 'Sin Nombre'} - ${new Date().toLocaleDateString()}`);
+      setPendingView(view);
+      setShowExitPrompt(true);
+      return;
+    }
+    performNavigation(view);
   };
 
   const rotateAllImages = () => {
@@ -258,26 +375,7 @@ export default function Sidebar({
   };
 
   // --- COMPONENTE INTERNO: PANEL DE GUARDADO ---
-  const SaveSection = () => (
-    showSaveModal ? (
-      <div className="mb-4 bg-amber-50 border border-amber-200 p-3 rounded-lg animate-in slide-in-from-top-2 fade-in">
-        <label className="text-[10px] font-bold text-amber-700 uppercase mb-1 block">Guardar Configuración</label>
-        <div className="flex gap-2">
-          <input
-            autoFocus
-            type="text"
-            placeholder="Nombre..."
-            className="flex-1 text-xs border border-amber-300 p-1.5 rounded focus:outline-none focus:border-amber-500"
-            value={newFavName}
-            onChange={e => setNewFavName(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && saveConfiguration()}
-          />
-          <button onClick={saveConfiguration} className="bg-amber-500 text-white px-2 rounded hover:bg-amber-600"><Check className="w-4 h-4" /></button>
-          <button onClick={() => setShowSaveModal(false)} className="bg-white text-amber-700 border border-amber-200 px-2 rounded hover:bg-amber-50"><X className="w-4 h-4" /></button>
-        </div>
-      </div>
-    ) : null
-  );
+
 
   // --- RENDERIZADORES DE VISTAS ---
 
@@ -298,6 +396,10 @@ export default function Sidebar({
       <button onClick={() => navigateTo('custom')} className="aspect-square bg-emerald-50 hover:bg-emerald-100 rounded-xl flex flex-col items-center justify-center gap-2 border-2 border-emerald-100 hover:border-emerald-300 transition-all group">
         <Ruler className="w-8 h-8 text-emerald-500 group-hover:scale-110 transition-transform" />
         <span className="text-xs font-bold text-emerald-700 text-center px-1">Retícula<br />Personalizada</span>
+      </button>
+      <button onClick={() => navigateTo('cv')} className="bg-blue-50 hover:bg-blue-100 rounded-xl flex flex-col items-center justify-center gap-2 border-2 border-blue-100 hover:border-blue-300 transition-all group aspect-square">
+        <User className="w-8 h-8 text-blue-500 group-hover:scale-110 transition-transform" />
+        <span className="text-xs font-bold text-blue-700 text-center">Crear<br />Curriculum</span>
       </button>
       <button onClick={() => navigateTo('favorites')} className="col-span-2 bg-amber-50 hover:bg-amber-100 rounded-xl p-4 flex items-center justify-center gap-3 border-2 border-amber-100 hover:border-amber-300 transition-all group">
         <Star className="w-5 h-5 text-amber-500 group-hover:scale-110 transition-transform" />
@@ -505,14 +607,365 @@ export default function Sidebar({
     setShowAddMenu(false);
   };
 
+  const renderCVMode = () => {
+    // --- HELPERS ---
+    const updatePersonalData = (key, value) => {
+      setConfig(prev => ({
+        ...prev,
+        personalData: { ...prev.personalData, [key]: value }
+      }));
+    };
+
+    const formatDUI = (val) => {
+      const raw = val.replace(/\D/g, '').slice(0, 9);
+      if (raw.length > 8) return `${raw.slice(0, 8)}-${raw.slice(8)}`;
+      return raw;
+    };
+
+    const formatNIT = (val) => {
+      const raw = val.replace(/\D/g, '').slice(0, 14);
+      if (raw.length > 13) return `${raw.slice(0, 4)}-${raw.slice(4, 10)}-${raw.slice(10, 13)}-${raw.slice(13)}`;
+      if (raw.length > 10) return `${raw.slice(0, 4)}-${raw.slice(4, 10)}-${raw.slice(10)}`;
+      if (raw.length > 4) return `${raw.slice(0, 4)}-${raw.slice(4)}`;
+      return raw;
+    };
+
+    const calculateAge = (dob) => {
+      if (!dob) return '';
+      const diff = Date.now() - new Date(dob).getTime();
+      const ageDate = new Date(diff);
+      return Math.abs(ageDate.getUTCFullYear() - 1970);
+    };
+
+    const handleDobChange = (e) => {
+      const dob = e.target.value;
+      const updates = { dob };
+      if (!config.personalData.manualAge) {
+        updates.age = calculateAge(dob);
+      }
+      setConfig(prev => ({
+        ...prev,
+        personalData: { ...prev.personalData, ...updates }
+      }));
+    };
+
+    const addPhone = () => {
+      const newPhone = { id: Date.now(), number: '', type: 'mobile', hasWhatsapp: false };
+      updatePersonalData('phones', [...(config.personalData.phones || []), newPhone]);
+    };
+
+    const updatePhone = (id, field, val) => {
+      const newPhones = config.personalData.phones.map(p => p.id === id ? { ...p, [field]: val } : p);
+      updatePersonalData('phones', newPhones);
+    };
+
+    // Add Other Doc helpers
+    const addOther = () => updatePersonalData('others', [...(config.personalData.others || []), { name: '', value: '' }]);
+    const updateOther = (idx, key, val) => {
+      const newOthers = [...config.personalData.others];
+      newOthers[idx][key] = val;
+      updatePersonalData('others', newOthers);
+    };
+
+    // --- STEP 0: PAGE SETUP ---
+    // --- STEP 0: CV HOME (MENU) ---
+    if (config.step === 0) {
+      return (
+        <div className="space-y-6 animate-in slide-in-from-right-4 fade-in duration-300 pb-20">
+          {/* Header */}
+          <div className="text-center mb-6">
+            <h3 className="text-xl font-bold text-slate-700">Curriculum Vitae</h3>
+            <p className="text-slate-400 text-xs mt-1">Crea un CV profesional o continúa uno existente</p>
+          </div>
+
+          {/* Actions */}
+          <div className="space-y-4">
+            <button
+              onClick={() => {
+                // RESET NEW CV STATE - HARD RESET
+                const cleanState = JSON.parse(JSON.stringify(DEFAULT_BASE.personalData));
+                setConfig(prev => ({
+                  ...prev,
+                  ...DEFAULTS.cv, // Base defaults
+                  personalData: cleanState, // Explicit fresh data
+                  step: 1
+                }));
+              }}
+              className="w-full bg-blue-600 text-white p-4 rounded-xl shadow-lg hover:bg-blue-700 transition flex items-center justify-between group"
+            >
+              <div className="flex items-center gap-3">
+                <div className="bg-white/20 p-2 rounded-lg"><Plus className="w-5 h-5 text-white" /></div>
+                <div className="text-left">
+                  <div className="font-bold text-sm">Crear Nuevo</div>
+                  <div className="text-[10px] opacity-80">Comenzar desde cero</div>
+                </div>
+              </div>
+              <ChevronRight className="w-5 h-5 opacity-50 group-hover:opacity-100 transition-opacity" />
+            </button>
+
+            <button
+              onClick={() => setConfig(prev => ({ ...prev, step: 'drafts' }))}
+              className="w-full bg-white text-slate-600 border border-slate-200 p-4 rounded-xl shadow-sm hover:bg-slate-50 transition flex items-center justify-between group"
+            >
+              <div className="flex items-center gap-3">
+                <div className="bg-slate-100 p-2 rounded-lg"><FileText className="w-5 h-5 text-slate-500" /></div>
+                <div className="text-left">
+                  <div className="font-bold text-sm">Ver Borradores</div>
+                  <div className="text-[10px] opacity-80">{cvDrafts?.length || 0} guardados</div>
+                </div>
+              </div>
+              <ChevronRight className="w-5 h-5 opacity-30 group-hover:opacity-100 transition-opacity" />
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    // --- STEP: DRAFTS LIST ---
+    if (config.step === 'drafts') {
+      return (
+        <div className="space-y-6 animate-in slide-in-from-right-4 fade-in duration-300 pb-20">
+          <button onClick={() => setConfig(prev => ({ ...prev, step: 0 }))} className="text-xs text-slate-400 hover:text-blue-500 flex items-center gap-1 mb-2">
+            <ArrowRight className="w-3 h-3 rotate-180" /> Volver
+          </button>
+          <div className="text-center mb-6">
+            <h3 className="text-xl font-bold text-slate-700">Mis Borradores</h3>
+            <p className="text-slate-400 text-xs mt-1">Selecciona para continuar editando</p>
+          </div>
+
+          <div className="space-y-3">
+            {cvDrafts?.length > 0 ? (
+              cvDrafts.map(draft => (
+                <div key={draft.id} className="bg-white border border-slate-200 rounded-xl p-3 hover:border-blue-300 hover:shadow-md transition-all flex justify-between items-center group">
+                  <button onClick={() => setConfig(draft.config)} className="flex items-center gap-3 flex-1 text-left">
+                    <div className="bg-blue-50 p-2 rounded-lg"><FileText className="w-5 h-5 text-blue-500" /></div>
+                    <div>
+                      <div className="font-bold text-sm text-slate-700">{draft.name}</div>
+                      <div className="text-[10px] text-slate-400 flex items-center gap-1">
+                        <Clock className="w-3 h-3" /> {new Date(draft.date).toLocaleDateString()}
+                      </div>
+                    </div>
+                  </button>
+                  <button onClick={() => deleteCVDraft(draft.id)} className="text-slate-300 hover:text-red-500 p-2 rounded-full hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100">
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              ))
+            ) : (
+              <div className="p-10 border-2 border-dashed border-slate-200 rounded-xl flex flex-col items-center justify-center text-slate-400 gap-2">
+                <FileText className="w-8 h-8 opacity-50" />
+                <span className="text-xs">No tienes borradores guardados</span>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    // --- STEP 1: PAGE SETUP ---
+    if (config.step === 1) {
+      return (
+        <div className="space-y-6 animate-in slide-in-from-right-4 fade-in duration-300 pb-20">
+          <button onClick={() => setConfig(prev => ({ ...prev, step: 0 }))} className="text-xs text-slate-400 hover:text-blue-500 flex items-center gap-1 mb-2">
+            <ArrowRight className="w-3 h-3 rotate-180" /> Volver
+          </button>
+          <div className="text-center mb-6">
+            <h3 className="text-xl font-bold text-slate-700">Configuración de Hoja</h3>
+            <p className="text-slate-400 text-xs mt-1">Selecciona el tamaño de tu Curriculum</p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <button
+              onClick={() => setConfig(prev => ({ ...prev, pageSize: 'carta' }))}
+              className={`p-4 rounded-xl border-2 flex flex-col items-center gap-3 transition-all ${config.pageSize === 'carta' ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200' : 'border-slate-200 hover:border-blue-300 hover:bg-slate-50'}`}
+            >
+              <div className="w-16 h-20 bg-white border border-slate-300 shadow-sm flex items-center justify-center">
+                <span className="text-[10px] text-slate-400">8.5x11"</span>
+              </div>
+              <span className={`font-bold text-sm ${config.pageSize === 'carta' ? 'text-blue-600' : 'text-slate-600'}`}>Carta</span>
+            </button>
+
+            <button
+              onClick={() => setConfig(prev => ({ ...prev, pageSize: 'a4' }))}
+              className={`p-4 rounded-xl border-2 flex flex-col items-center gap-3 transition-all ${config.pageSize === 'a4' ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200' : 'border-slate-200 hover:border-blue-300 hover:bg-slate-50'}`}
+            >
+              <div className="w-16 h-24 bg-white border border-slate-300 shadow-sm flex items-center justify-center">
+                <span className="text-[10px] text-slate-400">A4</span>
+              </div>
+              <span className={`font-bold text-sm ${config.pageSize === 'a4' ? 'text-blue-600' : 'text-slate-600'}`}>A4</span>
+            </button>
+          </div>
+
+          <button
+            onClick={() => setConfig(prev => ({ ...prev, step: 2 }))}
+            className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl shadow-lg hover:bg-blue-700 transition flex items-center justify-center gap-2 mt-8"
+          >
+            Comenzar <ArrowRight className="w-4 h-4" />
+          </button>
+        </div>
+      );
+    }
+
+    // --- STEP 1: PERSONAL DATA ---
+    return (
+      <div className="space-y-6 animate-in slide-in-from-right-4 fade-in duration-300 pb-20">
+        <SaveSection />
+
+        <div className="bg-blue-50 p-4 rounded-xl border border-blue-100">
+          <h3 className="text-sm font-bold text-blue-800 mb-4 flex items-center gap-2">
+            <span className="bg-blue-600 text-white w-5 h-5 rounded-full flex items-center justify-center text-xs">1</span>
+            Datos Personales
+          </h3>
+
+          <div className="space-y-3">
+            {/* Nombres */}
+            <div className="grid grid-cols-2 gap-2">
+              <div><label className="text-[10px] text-blue-600 font-bold block mb-1">Primer Nombre</label><input type="text" value={config.personalData.firstName} onChange={e => updatePersonalData('firstName', e.target.value)} className="w-full text-xs border border-blue-200 rounded p-1.5 focus:border-blue-500" /></div>
+              <div><label className="text-[10px] text-slate-400 font-bold block mb-1">Segundo Nombre (Op)</label><input type="text" value={config.personalData.secondName} onChange={e => updatePersonalData('secondName', e.target.value)} className="w-full text-xs border border-blue-200 rounded p-1.5 focus:border-blue-500" /></div>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div><label className="text-[10px] text-blue-600 font-bold block mb-1">Primer Apellido</label><input type="text" value={config.personalData.firstSurname} onChange={e => updatePersonalData('firstSurname', e.target.value)} className="w-full text-xs border border-blue-200 rounded p-1.5 focus:border-blue-500" /></div>
+              <div><label className="text-[10px] text-slate-400 font-bold block mb-1">Segundo Apellido (Op)</label><input type="text" value={config.personalData.secondSurname} onChange={e => updatePersonalData('secondSurname', e.target.value)} className="w-full text-xs border border-blue-200 rounded p-1.5 focus:border-blue-500" /></div>
+            </div>
+
+            {/* Sexo y Fecha Nac */}
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-[10px] text-blue-600 font-bold block mb-1">Sexo</label>
+                <select value={config.personalData.sex} onChange={e => updatePersonalData('sex', e.target.value)} className="w-full text-xs border border-blue-200 rounded p-1.5">
+                  <option>Masculino</option><option>Femenino</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-[10px] text-blue-600 font-bold block mb-1">Fecha Nacimiento</label>
+                <input type="date" value={config.personalData.dob} onChange={handleDobChange} className="w-full text-xs border border-blue-200 rounded p-1.5" />
+              </div>
+            </div>
+
+            {/* Edad */}
+            <div className="flex items-center gap-2 bg-white p-2 rounded border border-blue-100">
+              <div className="flex-1">
+                <label className="text-[10px] text-blue-600 font-bold block mb-1">Edad</label>
+                <input type="number" value={config.personalData.age} onChange={e => updatePersonalData('age', e.target.value)} disabled={!config.personalData.manualAge} className={`w-full text-xs border border-blue-200 rounded p-1.5 ${!config.personalData.manualAge ? 'bg-slate-50 text-slate-500' : ''}`} />
+              </div>
+              <div className="flex flex-col items-center pt-3">
+                <input type="checkbox" checked={config.personalData.manualAge} onChange={e => updatePersonalData('manualAge', e.target.checked)} id="manualAge" />
+                <label htmlFor="manualAge" className="text-[9px] text-slate-400 mt-0.5">Manual</label>
+              </div>
+            </div>
+
+            {/* DUI NIT */}
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-[10px] text-blue-600 font-bold block mb-1">DUI (9 dg)</label>
+                <input type="text" value={config.personalData.dui} onChange={e => updatePersonalData('dui', formatDUI(e.target.value))} placeholder="00000000-0" maxLength={10} className="w-full text-xs border border-blue-200 rounded p-1.5 focus:border-blue-500" />
+              </div>
+              <div>
+                <div className="flex justify-between"><label className="text-[10px] text-blue-600 font-bold block mb-1">NIT</label>
+                  <button onClick={() => updatePersonalData('showNit', !config.personalData.showNit)} title={config.personalData.showNit ? "Ocultar" : "Mostrar"} className="text-blue-400 hover:text-blue-600"><Check className={`w-3 h-3 ${!config.personalData.showNit ? 'grayscale opacity-50' : ''}`} /></button></div>
+                <input type="text" value={config.personalData.nit} onChange={e => updatePersonalData('nit', formatNIT(e.target.value))} placeholder="0000-000000-000-0" maxLength={17} disabled={!config.personalData.showNit} className={`w-full text-xs border border-blue-200 rounded p-1.5 ${!config.personalData.showNit ? 'bg-slate-100 opacity-50' : ''}`} />
+              </div>
+            </div>
+
+            {/* Estado Civil */}
+            <div className="bg-white p-2 border border-blue-100 rounded">
+              <div className="flex justify-between items-center mb-1">
+                <label className="text-[10px] text-blue-600 font-bold">Estado Civil</label>
+                <input type="checkbox" checked={config.personalData.showCivilStatus} onChange={e => updatePersonalData('showCivilStatus', e.target.checked)} className="rounded text-blue-500" />
+              </div>
+              {config.personalData.showCivilStatus && (
+                <select value={config.personalData.civilStatus} onChange={e => updatePersonalData('civilStatus', e.target.value)} className="w-full text-xs border border-blue-200 rounded p-1.5">
+                  <option>Soltero</option><option>Casado</option><option>Divorciado</option><option>Viudo</option><option>Unión Libre</option>
+                </select>
+              )}
+            </div>
+
+            {/* ISSS AFP */}
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <div className="flex justify-between items-center mb-1"><label className="text-[10px] text-blue-600 font-bold">ISSS</label><label className="text-[9px]"><input type="checkbox" checked={config.personalData.isssNA} onChange={e => updatePersonalData('isssNA', e.target.checked)} /> N/A</label></div>
+                <input type="text" value={config.personalData.isss} onChange={e => updatePersonalData('isss', e.target.value)} disabled={config.personalData.isssNA} className="w-full text-xs border border-blue-200 rounded p-1.5" />
+              </div>
+              <div>
+                <div className="flex justify-between items-center mb-1"><label className="text-[10px] text-blue-600 font-bold">AFP</label><label className="text-[9px]"><input type="checkbox" checked={config.personalData.afpNA} onChange={e => updatePersonalData('afpNA', e.target.checked)} /> N/A</label></div>
+                <input type="text" value={config.personalData.afp} onChange={e => updatePersonalData('afp', e.target.value)} disabled={config.personalData.afpNA} className="w-full text-xs border border-blue-200 rounded p-1.5" />
+              </div>
+            </div>
+
+            {/* Telefonos */}
+            <div className="bg-white p-2 border border-blue-100 rounded">
+              <label className="text-[10px] text-blue-600 font-bold block mb-2">Teléfonos</label>
+              <div className="space-y-2">
+                {config.personalData.phones?.map((phone, idx) => (
+                  <div key={phone.id} className="flex gap-1 items-center">
+                    <input type="text" value={phone.number} onChange={e => updatePhone(phone.id, 'number', e.target.value)} placeholder="0000-0000" className="flex-1 text-xs border border-slate-200 rounded p-1.5" />
+                    <div className="flex flex-col items-center px-1 bg-slate-50 rounded">
+                      <input type="checkbox" checked={phone.hasWhatsapp} onChange={e => updatePhone(phone.id, 'hasWhatsapp', e.target.checked)} title="Tiene WhatsApp" />
+                      <span className="text-[8px] text-slate-400">WA</span>
+                    </div>
+                    <button onClick={() => {
+                      const newP = config.personalData.phones.filter(p => p.id !== phone.id);
+                      updatePersonalData('phones', newP);
+                    }} className="text-red-400 hover:text-red-600"><X className="w-4 h-4" /></button>
+                  </div>
+                ))}
+                <button onClick={addPhone} className="w-full py-1 text-xs text-blue-500 border border-dashed border-blue-300 rounded hover:bg-blue-50">+ Agregar Teléfono</button>
+              </div>
+            </div>
+
+            {/* Email */}
+            <div className="bg-white p-2 border border-blue-100 rounded">
+              <div className="flex justify-between items-center mb-1">
+                <label className="text-[10px] text-blue-600 font-bold">Email</label>
+                <input type="checkbox" checked={config.personalData.emailNA} onChange={e => updatePersonalData('emailNA', e.target.checked)} title="No Aplica" className="rounded text-blue-500" />
+              </div>
+              {!config.personalData.emailNA && (
+                <input type="email" value={config.personalData.email} onChange={e => updatePersonalData('email', e.target.value)} className="w-full text-xs border border-blue-200 rounded p-1.5" />
+              )}
+            </div>
+
+            {/* Otros */}
+            <div className="bg-white p-2 border border-blue-100 rounded">
+              <label className="text-[10px] text-blue-600 font-bold block mb-2">Otros Documentos</label>
+              <div className="space-y-2">
+                {config.personalData.others?.map((doc, idx) => (
+                  <div key={idx} className="flex gap-1 items-center">
+                    <input type="text" placeholder="Nombre (Ej: Licencia)" value={doc.name} onChange={e => updateOther(idx, 'name', e.target.value)} className="w-1/3 text-xs border border-slate-200 rounded p-1.5" />
+                    <input type="text" placeholder="Valor" value={doc.value} onChange={e => updateOther(idx, 'value', e.target.value)} className="flex-1 text-xs border border-slate-200 rounded p-1.5" />
+                    <button onClick={() => {
+                      const newO = config.personalData.others.filter((_, i) => i !== idx);
+                      updatePersonalData('others', newO);
+                    }} className="text-red-400 hover:text-red-600"><X className="w-4 h-4" /></button>
+                  </div>
+                ))}
+                <button onClick={addOther} className="w-full py-1 text-xs text-blue-500 border border-dashed border-blue-300 rounded hover:bg-blue-50">+ Agregar Documento</button>
+              </div>
+            </div>
+
+
+          </div>
+        </div>
+
+        <button
+          onClick={() => setConfig(prev => ({ ...prev, step: 3 }))}
+          className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl shadow-lg hover:bg-blue-700 transition flex items-center justify-center gap-2"
+        >
+          Continuar <ArrowRight className="w-4 h-4" />
+        </button>
+      </div>
+    );
+  };
+
+
+
   const renderBannerMode = () => {
     // Calcular Tamaño Final
-    const pageSize = PAGE_SIZES[config.pageSize];
+    // const pageSize = PAGE_SIZES[config.pageSize];
     // bannerLayout is not defined in the provided context, assuming it's a prop or derived elsewhere.
-    const bannerLayout = null; // Placeholder, replace with actual derivation if available
-    const finalWidth = bannerLayout ? (pageSize.width * bannerLayout.cols) : 0;
-    const finalHeight = bannerLayout ? (pageSize.height * bannerLayout.rows) : 0;
-    const finalSizeStr = `${convert(finalWidth, unit)} x ${convert(finalHeight, unit)}`;
+    // const bannerLayout = null; // Placeholder, replace with actual derivation if available
+    // const finalWidth = bannerLayout ? (pageSize.width * bannerLayout.cols) : 0;
+    // const finalHeight = bannerLayout ? (pageSize.height * bannerLayout.rows) : 0;
+    // const finalSizeStr = `${convert(finalWidth, unit)} x ${convert(finalHeight, unit)}`;
 
     return (
       <div className="space-y-6 animate-in slide-in-from-right-4 fade-in duration-300">
@@ -764,6 +1217,7 @@ export default function Sidebar({
 
   return (
     <aside className="w-80 bg-white border-r border-slate-200 overflow-y-auto flex flex-col shadow-sm z-10 print:hidden h-full">
+      {renderExitConfirmationModal()}
       <div className="p-4 border-b border-slate-100 flex items-center gap-2 sticky top-0 bg-white/95 backdrop-blur z-20">
         {activeView !== 'home' ? (
           <button onClick={() => navigateTo('home')} className="p-1 rounded hover:bg-slate-100 text-slate-500 hover:text-slate-800 transition">
@@ -777,6 +1231,7 @@ export default function Sidebar({
           {activeView === 'mosaic' && 'Modo Mosaico'}
           {activeView === 'custom' && 'Retícula Personalizada'}
           {activeView === 'banner' && 'Texto Gigante'}
+          {activeView === 'cv' && 'Crear Curriculum'}
           {activeView === 'favorites' && 'Favoritos'}
           {activeView === 'settings' && 'Ajustes'}
         </h2>
@@ -800,6 +1255,7 @@ export default function Sidebar({
         {activeView === 'mosaic' && renderMosaicMode()}
         {activeView === 'custom' && renderCustomMode()}
         {activeView === 'banner' && renderBannerMode()}
+        {activeView === 'cv' && renderCVMode()}
         {activeView === 'favorites' && renderFavoritesMode()}
         {activeView === 'settings' && renderSettingsMode()}
       </div>
