@@ -3,9 +3,9 @@ import {
     Type, Globe, FileType, Monitor, Filter, Heart,
     Plus, X, Scissors, Layers
 } from 'lucide-react';
-import { PaperSettings, MarginSettings, PrintGuidesFooter } from '../../components/layout/PaperMarginControls';
-import InputNumber from '../../components/ui/InputNumber';
-import Button from '../../components/ui/Button';
+import { PaperSettings, MarginSettings, PrintGuidesFooter } from '../../components/Layout/PaperMarginControls';
+import InputNumber from '../../components/UI/InputNumber';
+import Button from '../../components/UI/Button';
 import { toMm } from '../../utils/measurements';
 import { UNITS } from '../../constants/printSettings';
 

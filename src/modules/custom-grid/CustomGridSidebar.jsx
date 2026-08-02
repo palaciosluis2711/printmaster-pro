@@ -1,8 +1,8 @@
 import React from 'react';
 import { Ruler, RotateCw } from 'lucide-react';
-import { PaperSettings, MarginSettings, PrintGuidesFooter } from '../../components/layout/PaperMarginControls';
-import InputNumber from '../../components/ui/InputNumber';
-import Slider from '../../components/ui/Slider';
+import { PaperSettings, MarginSettings, PrintGuidesFooter } from '../../components/Layout/PaperMarginControls';
+import InputNumber from '../../components/UI/InputNumber';
+import Slider from '../../components/UI/Slider';
 import { toMm, convert } from '../../utils/measurements';
 import { UNITS } from '../../constants/printSettings';
 

@@ -2,7 +2,7 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { Plus, Grid, Scaling, RotateCw, X } from 'lucide-react';
 import { PAGE_SIZES } from '../../constants/printSettings';
 import { mmToPx } from '../../utils/measurements';
-import ZoomControls from '../../components/ui/ZoomControls';
+import ZoomControls from '../../components/UI/ZoomControls';
 
 export default function MosaicCanvas({
     zoom,

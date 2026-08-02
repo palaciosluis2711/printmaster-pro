@@ -1,7 +1,7 @@
 import React from 'react';
 import { Mail, Phone, User } from 'lucide-react';
 import { PAGE_SIZES } from '../../constants/printSettings';
-import ZoomControls from '../../components/ui/ZoomControls';
+import ZoomControls from '../../components/UI/ZoomControls';
 
 export default function CVCanvas({ config, zoom, setZoom }) {
     const { personalData = {}, pageSize = 'carta' } = config;

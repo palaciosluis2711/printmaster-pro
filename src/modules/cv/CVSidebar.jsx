@@ -3,7 +3,7 @@ import {
     Plus, FileText, ChevronRight, ArrowRight, Clock,
     Trash2, Check, X, Save, ArrowLeft
 } from 'lucide-react';
-import Button from '../../components/ui/Button';
+import Button from '../../components/UI/Button';
 
 export const CV_DEFAULT_PERSONAL_DATA = {
     firstName: '',

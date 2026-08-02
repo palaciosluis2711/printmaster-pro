@@ -2,8 +2,8 @@ import React from 'react';
 import { Settings, Maximize, Link, Unlink } from 'lucide-react';
 import { PAGE_SIZES, UNITS } from '../../constants/printSettings';
 import { convert, toMm } from '../../utils/measurements';
-import InputNumber from '../ui/InputNumber';
-import Toggle from '../ui/Toggle';
+import InputNumber from '../UI/InputNumber';
+import Toggle from '../UI/Toggle';
 
 // --- SECCIÓN DE PAPEL ---
 export function PaperSettings({ config, setConfig }) {

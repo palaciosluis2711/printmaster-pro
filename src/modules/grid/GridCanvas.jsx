@@ -2,7 +2,7 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { Plus, Scaling, RotateCw, X, Copy, Grid } from 'lucide-react';
 import { PAGE_SIZES } from '../../constants/printSettings';
 import { mmToPx, convert } from '../../utils/measurements';
-import ZoomControls from '../../components/ui/ZoomControls';
+import ZoomControls from '../../components/UI/ZoomControls';
 
 export default function GridCanvas({
     zoom,

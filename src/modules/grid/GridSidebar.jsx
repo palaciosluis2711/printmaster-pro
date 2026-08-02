@@ -1,7 +1,7 @@
 import React from 'react';
 import { Grid, RotateCw } from 'lucide-react';
-import { PaperSettings, MarginSettings, PrintGuidesFooter } from '../../components/layout/PaperMarginControls';
-import Slider from '../../components/ui/Slider';
+import { PaperSettings, MarginSettings, PrintGuidesFooter } from '../../components/Layout/PaperMarginControls';
+import Slider from '../../components/UI/Slider';
 import { convert } from '../../utils/measurements';
 import { UNITS } from '../../constants/printSettings';
 
